@@ -65,7 +65,7 @@ class InMemoryCacheBackend:
     
     def clear(self) -> None:
         """Clear the entire cache."""
-        with self._00004:
+        with self._lock:
             self._cache.clear()
             self._access_times.clear()
     

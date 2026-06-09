@@ -68,3 +68,45 @@ class RedisCacheBackend:
         except Exception as e:
             logger.warning(f"Error creating session: {str(e)}")
             return False
+
+
+class RedisSessionBackend:
+    """Redis session backend with graceful fallback to in-memory storage."""
+    
+    def __init__(self, redis_url: str = "redis://localhost:6379", max_sessions: int = 50, session_ttl_seconds: int = 3600):
+        self.session_ttl_seconds = session_ttl_seconds
+        self._redis_client = None
+        self._redis_available = False
+        self._in_memory_sessions = InMemorySessionBackend(max_sessions=max_sessions, session_ttl_seconds=session_ttl_seconds)
+        
+        # Try to connect to Redis
+        try:
+            self._redis_client = redis.Redis.from_url(redis_url)
+            self._redis_client.ping()
+            self._redis_available = True
+        except Exception as e:
+            logger.warning(f"Could not connect to Redis: {str(e)}. Falling back to in-memory storage.")
+            self._redis_available = False
+
+    def get_session(self, session_id: str) -> Optional[Dict]:
+        try:
+            if self._redis_available and self._redis_client:
+                result = self._redis_client.hget("sessions", session_id)
+                if result:
+                    return json.loads(result)
+            else:
+                return self._in_memory_sessions.get_session(session_id)
+        except Exception as e:
+            logger.warning(f"Error accessing session: {str(e)}")
+            return None
+
+    def create_session(self, session_id: str, data: Dict) -> bool:
+        try:
+            if self._redis_available and self._redis_client:
+                self._redis_client.hset("sessions", session_id, json.dumps(data))
+                return True
+            else:
+                return self._in_memory_sessions.create_session(session_id, data)
+        except Exception as e:
+            logger.warning(f"Error creating session: {str(e)}")
+            return False
