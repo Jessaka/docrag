@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.env
+.venv/
+.env
+
+# Data files (generated)
+/data/indexes/
+/data/docs_store.pkl
+
+# Logs
+logs/
+
+# OS files
+.DS_Store
+
+# Node / frontend
+node_modules/
+/build
+/dist
+
+# Misc
+.vscode/
+.idea/
