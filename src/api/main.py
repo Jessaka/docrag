@@ -13,7 +13,7 @@ from typing import Any, AsyncIterator, Deque, Dict, Optional
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, root_validator
 
 from config import settings
 from src.generation.chain import DocsRAGChain
@@ -30,10 +30,20 @@ RATE_LIMIT_MAX_REQUESTS = 30
 
 
 class ChatRequest(BaseModel):
-    """Request payload for chat endpoints."""
+    """Request payload for chat endpoints. Accepts either 'query' or legacy 'question'."""
 
-    query: str = Field(..., min_length=1, max_length=2048)
+    query: Optional[str] = Field(None, min_length=1, max_length=2048)
+    question: Optional[str] = Field(None, alias="question", min_length=1, max_length=2048)
     session_id: Optional[str] = Field(default=None, max_length=128)
+
+    @root_validator(pre=True)
+    def ensure_query(cls, values: dict) -> dict:
+        """Ensure 'query' is set, using 'question' as fallback."""
+        query = values.get('query') or values.get('question')
+        if not query:
+            raise ValueError('Either "query" or "question" must be provided and non-empty.')
+        values['query'] = query
+        return values
 
 
 def create_session_pool() -> Any:

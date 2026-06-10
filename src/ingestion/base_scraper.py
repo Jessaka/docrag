@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from html import unescape
 from html.parser import HTMLParser
 from typing import Dict, Iterable, List, Optional, Sequence, Set
-from urllib import parse, request, robotparser
+from urllib import parse, request
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +141,7 @@ class BaseScraper(ABC):
         self.max_pages = max_pages or self.max_pages
         self.cache_dir = cache_dir or self.cache_dir
         self.user_agent = user_agent or self.user_agent
-        self._robots_cache: Dict[str, robotparser.RobotFileParser] = {}
+        self._robots_cache: Dict[str, Dict[str, List[str]]] = {}
         self._last_request_at: Dict[str, float] = {}
         os.makedirs(self.cache_dir, exist_ok=True)
 
@@ -203,15 +203,43 @@ class BaseScraper(ABC):
         for href in hrefs:
             absolute = parse.urljoin(url, href)
             absolute = absolute.split("#", 1)[0]
+            absolute = self.normalize_discovered_url(absolute)
+            if not absolute:
+                continue
             if not absolute.startswith("http"):
                 continue
             if not self._is_allowed_domain(absolute):
+                continue
+            if not self.should_follow_url(absolute):
                 continue
             if absolute in seen:
                 continue
             seen.add(absolute)
             normalized.append(absolute)
         return normalized
+
+    def normalize_discovered_url(self, url: str) -> str:
+        """Normalize discovered links before enqueueing them."""
+        return url
+
+    def should_follow_url(self, url: str) -> bool:
+        """Return whether a discovered URL should be crawled."""
+        path = (parse.urlparse(url).path or "").lower()
+        blocked_suffixes = (
+            ".css",
+            ".js",
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".gif",
+            ".svg",
+            ".ico",
+            ".webp",
+            ".xml",
+            ".txt",
+            ".pdf",
+        )
+        return not path.endswith(blocked_suffixes)
 
     def _is_allowed_domain(self, url: str) -> bool:
         hostname = (parse.urlparse(url).hostname or "").lower()
@@ -226,16 +254,48 @@ class BaseScraper(ABC):
         parsed = parse.urlparse(url)
         base = f"{parsed.scheme}://{parsed.netloc}"
         if base not in self._robots_cache:
-            rp = robotparser.RobotFileParser()
-            rp.set_url(parse.urljoin(base, "/robots.txt"))
             try:
-                rp.read()
+                robots_url = parse.urljoin(base, "/robots.txt")
+                req = request.Request(robots_url, headers={"User-Agent": self.user_agent})
+                with request.urlopen(req, timeout=DEFAULT_TIMEOUT_SECONDS) as response:
+                    robots_text = response.read().decode("utf-8", errors="ignore")
             except Exception as exc:
                 logger.warning("Could not read robots.txt for %s: %s", base, exc)
-                self._robots_cache[base] = _DenyAllRobotsParser()
+                self._robots_cache[base] = {"*": ["/"]}
                 return False
-            self._robots_cache[base] = rp
-        return self._robots_cache[base].can_fetch(self.user_agent, url)
+            self._robots_cache[base] = self._parse_robots_txt(robots_text)
+        return self._is_path_allowed_by_rules(parsed.path or "/", self._robots_cache[base])
+
+    def _parse_robots_txt(self, robots_text: str) -> Dict[str, List[str]]:
+        rules: Dict[str, List[str]] = {}
+        current_agents: List[str] = []
+        for raw_line in robots_text.splitlines():
+            line = raw_line.split("#", 1)[0].strip()
+            if not line or ":" not in line:
+                continue
+            key, value = [part.strip() for part in line.split(":", 1)]
+            key = key.lower()
+            if key == "user-agent":
+                agent = value or "*"
+                current_agents = [agent]
+                rules.setdefault(agent, [])
+            elif key == "disallow":
+                disallow_path = value.strip()
+                for agent in current_agents or ["*"]:
+                    rules.setdefault(agent, []).append(disallow_path)
+        return rules or {"*": []}
+
+    def _is_path_allowed_by_rules(self, path: str, rules: Dict[str, List[str]]) -> bool:
+        candidate_agents = [self.user_agent, "*"]
+        for agent in candidate_agents:
+            for blocked_prefix in rules.get(agent, []):
+                if blocked_prefix in {"", None}:
+                    continue
+                if blocked_prefix == "/":
+                    return False
+                if path.startswith(blocked_prefix):
+                    return False
+        return True
 
     def _respect_rate_limit(self, url: str) -> None:
         hostname = parse.urlparse(url).netloc
@@ -378,12 +438,4 @@ class GenericHTMLDocsScraper(BaseScraper):
                 continue
             if parsed_link.path.startswith(parsed_seed.path.rstrip("/")):
                 return True
-        return False
-
-
-class _DenyAllRobotsParser:
-    """Fallback parser that denies crawling when robots.txt is unavailable."""
-
-    @staticmethod
-    def can_fetch(useragent: str, url: str) -> bool:
         return False

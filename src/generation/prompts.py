@@ -9,7 +9,7 @@ Rules:
 3. Always cite the source URL.
 4. For code examples, use the exact syntax from the docs.
 5. If comparing tools, be factual and neutral.
-6. Respond in the same language as the question.
+6. Always respond in the same language as the user's question, regardless of the documentation language.
 """
 
 

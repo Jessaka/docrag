@@ -76,14 +76,18 @@ def _chunk_changelog(document: RawDocument) -> List[ChunkedDocument]:
             continue
         version_match = re.search(r"\b(v?\d+\.\d+(?:\.\d+)?)\b", cleaned)
         section = version_match.group(1) if version_match else document.section
+        payload = {**document.__dict__}
+        payload.update(
+            {
+                "text": cleaned,
+                "section": section,
+                "chunk_index": index,
+                "version": version_match.group(1) if version_match else document.version,
+                "raw_html": "",
+            }
+        )
         chunks.append(
-            ChunkedDocument(
-                **document.__dict__,
-                text=cleaned,
-                section=section,
-                chunk_index=index,
-                version=version_match.group(1) if version_match else document.version,
-            )
+            ChunkedDocument(**payload)
         )
     return chunks
 
@@ -119,12 +123,15 @@ def _build_chunks_from_blocks(document: RawDocument, blocks: List[str], token_li
 
 
 def _make_chunk(document: RawDocument, text: str, chunk_index: int) -> ChunkedDocument:
-    return ChunkedDocument(
-        **document.__dict__,
-        text=text.strip(),
-        chunk_index=chunk_index,
-        raw_html="",
+    payload = {**document.__dict__}
+    payload.update(
+        {
+            "text": text.strip(),
+            "chunk_index": chunk_index,
+            "raw_html": "",
+        }
     )
+    return ChunkedDocument(**payload)
 
 
 def _split_on_patterns(text: str, patterns: List[str]) -> List[str]:

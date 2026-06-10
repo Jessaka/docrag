@@ -8,6 +8,7 @@ from typing import Iterable, List, Sequence
 
 from openai import OpenAI
 
+from config import settings
 from src.ingestion.chunker import ChunkedDocument
 
 logger = logging.getLogger(__name__)
@@ -26,7 +27,7 @@ class OpenAIEmbedder:
         model: str = EMBEDDING_MODEL,
         batch_size: int = EMBEDDING_BATCH_SIZE,
     ):
-        self.client = client or OpenAI()
+        self.client = client or OpenAI(api_key=settings.OPENAI_API_KEY)
         self.model = model
         self.batch_size = batch_size
 

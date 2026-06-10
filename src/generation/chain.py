@@ -46,7 +46,7 @@ class DocsRAGChain:
     ):
         self._retriever = retriever or DocsRetriever()
         self._cache = response_cache or ResponseCache()
-        self._anthropic = anthropic_client or AsyncAnthropic()
+        self._anthropic = anthropic_client or AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
         self._embedding_client = embedding_client or AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         self._anthropic_model = anthropic_model
         self._embedding_model = embedding_model
@@ -368,6 +368,7 @@ class DocsRAGChain:
         query_profile: QueryProfile,
         sources: List[Dict[str, Any]],
         cached: bool,
+        confidence: float = 1.0,
     ) -> Dict[str, Any]:
         return {
             "answer": answer,
@@ -375,6 +376,7 @@ class DocsRAGChain:
             "query": query,
             "cached": cached,
             "sources": sources,
+            "confidence": confidence,
             "query_profile": {
                 "query_type": query_profile.query_type,
                 "providers": query_profile.providers,
