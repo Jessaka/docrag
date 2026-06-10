@@ -8,6 +8,7 @@ from typing import Any, AsyncIterator, Dict, List, Optional
 from anthropic import AsyncAnthropic
 from openai import AsyncOpenAI
 
+from config import settings
 from src.generation.cache import ResponseCache
 from src.generation.constants import RouteStrategy
 from src.generation.prompts import QUERY_REWRITE_PROMPT, SYSTEM_PROMPT
@@ -46,7 +47,7 @@ class DocsRAGChain:
         self._retriever = retriever or DocsRetriever()
         self._cache = response_cache or ResponseCache()
         self._anthropic = anthropic_client or AsyncAnthropic()
-        self._embedding_client = embedding_client or AsyncOpenAI()
+        self._embedding_client = embedding_client or AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         self._anthropic_model = anthropic_model
         self._embedding_model = embedding_model
         self._max_context_results = max_context_results

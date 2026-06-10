@@ -13,7 +13,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the DocsRAG backend locally.")
     parser.add_argument(
         "--host",
-        default=os.getenv("HOST", "127.0.0.1"),
+        default=os.getenv("HOST", "0.0.0.0"),
         help="Host interface for the local API server.",
     )
     parser.add_argument(
