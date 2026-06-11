@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Tuple
 
 from src.ingestion.base_scraper import RawDocument
 
@@ -134,16 +134,78 @@ def _make_chunk(document: RawDocument, text: str, chunk_index: int) -> ChunkedDo
     return ChunkedDocument(**payload)
 
 
+def _fenced_code_spans(text: str) -> List[Tuple[int, int]]:
+    """Return (start, end) character offsets of fenced ```code``` blocks."""
+    spans: List[Tuple[int, int]] = []
+    in_fence = False
+    fence_start = 0
+    pos = 0
+    for line in text.split("\n"):
+        line_len = len(line) + 1  # account for the stripped "\n"
+        if line.strip().startswith("```"):
+            if not in_fence:
+                in_fence = True
+                fence_start = pos
+            else:
+                in_fence = False
+                spans.append((fence_start, pos + len(line)))
+        pos += line_len
+    if in_fence:
+        spans.append((fence_start, len(text)))
+    return spans
+
+
 def _split_on_patterns(text: str, patterns: List[str]) -> List[str]:
     if not text.strip():
         return []
-    combined = "|".join(f"(?:{pattern})" for pattern in patterns)
-    parts = re.split(combined, text)
+    combined = re.compile("|".join(f"(?:{pattern})" for pattern in patterns))
+    fenced_spans = _fenced_code_spans(text)
+
+    def _inside_fence(index: int) -> bool:
+        return any(start < index < end for start, end in fenced_spans)
+
+    matches = [match for match in combined.finditer(text) if not _inside_fence(match.start())]
+    if not matches:
+        return [text] if text.strip() else []
+
+    parts: List[str] = []
+    previous_end = 0
+    for match in matches:
+        parts.append(text[previous_end:match.start()])
+        previous_end = match.end()
+    parts.append(text[previous_end:])
     return [part for part in parts if part and part.strip()]
 
 
+def _split_into_paragraphs(text: str) -> List[str]:
+    """Split on blank lines, keeping fenced ```code``` blocks intact as single paragraphs."""
+    lines = text.split("\n")
+    paragraphs: List[str] = []
+    current: List[str] = []
+    in_fence = False
+    for line in lines:
+        if line.strip().startswith("```"):
+            in_fence = not in_fence
+            current.append(line)
+            continue
+        if not in_fence and not line.strip():
+            if current:
+                paragraphs.append("\n".join(current).strip())
+                current = []
+            continue
+        current.append(line)
+    if current:
+        paragraphs.append("\n".join(current).strip())
+    return [paragraph for paragraph in paragraphs if paragraph]
+
+
+def _is_fenced_code_block(text: str) -> bool:
+    stripped = text.strip()
+    return stripped.startswith("```") and stripped.endswith("```")
+
+
 def _split_long_text(text: str, token_limit: int) -> List[str]:
-    paragraphs = [part.strip() for part in re.split(r"\n\n+", text) if part.strip()]
+    paragraphs = _split_into_paragraphs(text)
     if not paragraphs:
         return [text]
 
@@ -158,6 +220,12 @@ def _split_long_text(text: str, token_limit: int) -> List[str]:
             current_tokens = 0
 
         if paragraph_tokens > token_limit:
+            if _is_fenced_code_block(paragraph):
+                # Never split a fenced code block across chunks, even if it
+                # exceeds the token limit on its own.
+                parts.append(paragraph)
+                continue
+
             sentences = re.split(r"(?<=[.!?])\s+", paragraph)
             for sentence in sentences:
                 if _estimate_tokens(sentence) > token_limit:

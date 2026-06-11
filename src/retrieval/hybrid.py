@@ -14,6 +14,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 
 from config import settings
+from src.retrieval.tokenizer import tokenize
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +109,7 @@ class HybridRetriever:
             logger.warning("BM25 not loaded, returning empty results")
             return []
 
-        tokenized_query = query.lower().split()
+        tokenized_query = tokenize(query)
         scores = self._bm25.get_scores(tokenized_query)
 
         # Get top-k indices
@@ -155,16 +156,16 @@ class HybridRetriever:
                     ]
                 )
 
-            response = self._qdrant_client.query_points(
+            response = self._qdrant_client.search(
                 collection_name=self.qdrant_collection,
-                query=query_vector,
+                query_vector=query_vector,
                 limit=top_k,
                 query_filter=query_filter,
                 with_payload=True,
             )
 
             results = []
-            for point in response.points:
+            for point in response:
                 payload = point.payload or {}
                 results.append(
                     SearchResult(
@@ -183,7 +184,7 @@ class HybridRetriever:
                 )
             return results
         except Exception as e:
-            logger.error(f"Qdrant search failed: {e}")
+            logger.error(f"Qdrant search failed: {type(e).__name__}: {e}", exc_info=True)
             return []
 
     def rrf_fusion(

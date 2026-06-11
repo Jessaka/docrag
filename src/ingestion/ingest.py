@@ -22,6 +22,7 @@ from src.ingestion.scrapers.cursor import CursorScraper
 from src.ingestion.scrapers.hermes import HermesScraper
 from src.ingestion.scrapers.opencode import OpencodeScraper
 from src.ingestion.scrapers.openclaw import OpenClawScraper
+from src.retrieval.tokenizer import tokenize
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +101,7 @@ class IngestionOrchestrator:
             with open(settings.DOCS_STORE_PATH, "wb") as file_handle:
                 pickle.dump([], file_handle)
             return
-        tokenized_corpus = [chunk.text.lower().split() for chunk in chunks]
+        tokenized_corpus = [tokenize(chunk.text) for chunk in chunks]
         bm25 = BM25Okapi(tokenized_corpus)
 
         with open(settings.BM25_INDEX_PATH, "wb") as file_handle:
