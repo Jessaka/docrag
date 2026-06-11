@@ -12,9 +12,9 @@
 		cached?: boolean;
 	}
 
-	let sessionId = '';
-	let query = '';
-	let messages: Message[] = [
+	let sessionId = $state('');
+	let query = $state('');
+	let messages: Message[] = $state([
 		{
 			id: crypto.randomUUID(),
 			role: 'assistant',
@@ -22,10 +22,10 @@
 				'Ask about Claude Code, Cursor, Opencode, Codex, Hermes, or OpenClaw. Responses stream in as they are generated.',
 			sources: []
 		}
-	];
-	let isLoading = false;
-	let errorMessage = '';
-	let currentAssistantId = '';
+	]);
+	let isLoading = $state(false);
+	let errorMessage = $state('');
+	let currentAssistantId = $state('');
 
 	async function sendMessage() {
 		const trimmed = query.trim();
@@ -239,7 +239,7 @@
 				placeholder="Ask about installation, configuration, API usage, pricing, or troubleshooting..."
 				disabled={isLoading}
 				rows="4"
-			/>
+			></textarea>
 			<div class="composer-actions">
 				<div class="session-indicator">
 					{#if sessionId}

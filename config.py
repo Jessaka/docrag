@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     DOCS_STORE_PATH: str = Field("data/docs_store.pkl", env="DOCS_STORE_PATH")
 
     # Reranker
-    RERANKER_MODEL: str = Field("cross-encoder/ms-marco-MiniLM-L-6-v2", env="RERANKER_MODEL")
+    RERANKER_MODEL: str = Field("BAAI/bge-reranker-v2-m3", env="RERANKER_MODEL")
     RERANKER_DEVICE: str = Field("cpu", env="RERANKER_DEVICE")
 
     # API

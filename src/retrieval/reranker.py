@@ -1,6 +1,7 @@
 """Cross-encoder reranker for improving retrieval precision.
 
-Uses sentence-transformers cross-encoder/ms-marco-MiniLM-L-6-v2 to rescore
+Uses a sentence-transformers cross-encoder (configurable via RERANKER_MODEL,
+default BAAI/bge-reranker-v2-m3 for multilingual support) to rescore
 retrieved chunks against the query, producing more accurate relevance rankings.
 """
 import logging
@@ -8,33 +9,36 @@ from typing import List, Optional, Tuple
 
 from sentence_transformers import CrossEncoder
 
+from config import settings
 from src.retrieval.hybrid import SearchResult
 
 logger = logging.getLogger(__name__)
 
 # Default cross-encoder model
-DEFAULT_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+DEFAULT_MODEL = settings.RERANKER_MODEL
 
 
 class CrossEncoderReranker:
     """Reranks search results using a cross-encoder model for better precision."""
 
-    def __init__(self, model_name: str = DEFAULT_MODEL):
+    def __init__(self, model_name: str = DEFAULT_MODEL, device: str = settings.RERANKER_DEVICE):
         """Initialize the cross-encoder reranker.
 
         Args:
             model_name: HuggingFace model identifier for the cross-encoder.
+            device: Device to load the model on (e.g. "cpu", "cuda").
         """
         self.model_name = model_name
+        self.device = device
         self._model: Optional[CrossEncoder] = None
         self._loaded = False
 
     def load(self) -> bool:
         """Load the cross-encoder model into memory."""
         try:
-            self._model = CrossEncoder(self.model_name)
+            self._model = CrossEncoder(self.model_name, device=self.device)
             self._loaded = True
-            logger.info(f"Cross-encoder loaded: {self.model_name}")
+            logger.info(f"Cross-encoder loaded: {self.model_name} (device={self.device})")
             return True
         except Exception as e:
             logger.error(f"Failed to load cross-encoder model '{self.model_name}': {e}")
