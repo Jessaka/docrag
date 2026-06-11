@@ -6,7 +6,7 @@ Limits to max 2 chunks per source (provider) to ensure diversity.
 import logging
 import pickle
 from typing import List, Dict, Any, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 from rank_bm25 import BM25Okapi
@@ -155,16 +155,16 @@ class HybridRetriever:
                     ]
                 )
 
-            response = self._qdrant_client.search(
+            response = self._qdrant_client.query_points(
                 collection_name=self.qdrant_collection,
-                query_vector=query_vector,
+                query=query_vector,
                 limit=top_k,
                 query_filter=query_filter,
                 with_payload=True,
             )
 
             results = []
-            for point in response:
+            for point in response.points:
                 payload = point.payload or {}
                 results.append(
                     SearchResult(
@@ -177,7 +177,7 @@ class HybridRetriever:
                         section=payload.get("section", ""),
                         chunk_index=payload.get("chunk_index", 0),
                         score=float(point.score),
-                        source="qdrant",
+                        source="vector",
                         payload=payload,
                     )
                 )
@@ -199,39 +199,51 @@ class HybridRetriever:
         # Build rank maps: key -> rank (1-indexed)
         bm25_ranks: Dict[str, int] = {}
         for rank, result in enumerate(bm25_results, start=1):
-            key = result.url  # Use URL as unique identifier
+            key = self._result_key(result)
             if key not in bm25_ranks:
                 bm25_ranks[key] = rank
 
         qdrant_ranks: Dict[str, int] = {}
         for rank, result in enumerate(qdrant_results, start=1):
-            key = result.url
+            key = self._result_key(result)
             if key not in qdrant_ranks:
                 qdrant_ranks[key] = rank
 
         # Collect all unique results
         all_results: Dict[str, SearchResult] = {}
         for r in bm25_results:
-            if r.url not in all_results:
-                all_results[r.url] = r
+            key = self._result_key(r)
+            if key not in all_results:
+                all_results[key] = r
         for r in qdrant_results:
-            if r.url not in all_results:
-                all_results[r.url] = r
+            key = self._result_key(r)
+            if key not in all_results:
+                all_results[key] = r
 
         # Compute RRF scores
         fused: List[tuple] = []
-        for url, result in all_results.items():
+        for key, result in all_results.items():
             rrf_score = 0.0
-            if url in bm25_ranks:
-                rrf_score += 1.0 / (k + bm25_ranks[url])
-            if url in qdrant_ranks:
-                rrf_score += 1.0 / (k + qdrant_ranks[url])
-            fused.append((rrf_score, result))
+            if key in bm25_ranks:
+                rrf_score += 1.0 / (k + bm25_ranks[key])
+            if key in qdrant_ranks:
+                rrf_score += 1.0 / (k + qdrant_ranks[key])
+
+            fused_result = replace(result)
+            if key in bm25_ranks and key in qdrant_ranks:
+                fused_result.source = "vector" if qdrant_ranks[key] <= bm25_ranks[key] else "bm25"
+
+            fused.append((rrf_score, fused_result))
 
         # Sort by RRF score descending
         fused.sort(key=lambda x: x[0], reverse=True)
 
         return [result for _, result in fused]
+
+    @staticmethod
+    def _result_key(result: SearchResult) -> str:
+        """Stable key for a unique retrieved chunk."""
+        return f"{result.url}#{result.chunk_index}"
 
     def limit_per_source(self, results: List[SearchResult]) -> List[SearchResult]:
         """Limit results to max MAX_CHUNKS_PER_SOURCE per provider."""

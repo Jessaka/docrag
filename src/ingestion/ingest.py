@@ -75,7 +75,10 @@ class IngestionOrchestrator:
         for item in embedded_points:
             payload = item["payload"]
             point_id = self._build_point_id(
+                provider=str(payload.get("provider", "")),
                 url=str(payload["url"]),
+                section=str(payload.get("section", "")),
+                title=str(payload.get("title", "")),
                 chunk_index=int(payload["chunk_index"]),
             )
             points.append(PointStruct(id=point_id, vector=item["vector"], payload=payload))
@@ -125,8 +128,9 @@ class IngestionOrchestrator:
         ]
 
     @staticmethod
-    def _build_point_id(url: str, chunk_index: int) -> str:
-        return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{url}#{chunk_index}"))
+    def _build_point_id(provider: str, url: str, section: str, title: str, chunk_index: int) -> str:
+        unique_key = f"{provider}|{url}|{section}|{title}|{chunk_index}"
+        return str(uuid.uuid5(uuid.NAMESPACE_URL, unique_key))
 
 
 def run_ingestion(scrapers: Optional[Sequence] = None) -> dict:

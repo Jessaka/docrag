@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import os
 import re
@@ -12,8 +13,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from html import unescape
 from html.parser import HTMLParser
-from typing import Dict, Iterable, List, Optional, Sequence, Set
+from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 from urllib import parse, request
+from xml.etree import ElementTree as ET
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +24,12 @@ DEFAULT_RATE_LIMIT_SECONDS = 0.5  # max 2 req/sec per domain
 DEFAULT_TIMEOUT_SECONDS = 20
 DEFAULT_MAX_PAGES = 50
 DEFAULT_CACHE_DIR = "/tmp/ai-docs-chatbot-html-cache"
+ASSET_SUFFIXES = (".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp", ".xml", ".txt", ".pdf", ".woff", ".woff2", ".map", ".webmanifest")
+TRANSLATED_SEGMENTS = {
+    "ar", "bs", "da", "de", "es", "fr", "it", "ja", "ko", "nb",
+    "pl", "pt-br", "ru", "th", "tr", "uk", "zh", "zh-cn", "zh-tw",
+}
+EXCLUDED_DOC_TERMS = {"pricing", "blog", "datasets", "models", "catalog", "collections"}
 
 
 @dataclass
@@ -149,6 +157,46 @@ class BaseScraper(ABC):
     def scrape(self) -> List[RawDocument]:
         """Scrape and return raw documents."""
 
+    def fetch_text(self, url: str, use_cache: bool = True) -> Optional[str]:
+        """Fetch text-based content with robots.txt, rate limiting, and /tmp cache."""
+        if use_cache:
+            cached = self._read_cached_html(url)
+            if cached is not None:
+                return cached
+
+        if not self._is_allowed_by_robots(url):
+            logger.info("Skipping %s due to robots.txt", url)
+            return None
+
+        self._respect_rate_limit(url)
+        req = request.Request(
+            url,
+            headers={
+                "User-Agent": self.user_agent,
+                "Accept": "text/plain,text/markdown,text/html,application/xml,text/xml,application/json,*/*",
+            },
+        )
+        try:
+            with request.urlopen(req, timeout=DEFAULT_TIMEOUT_SECONDS) as response:
+                content = response.read().decode("utf-8", errors="ignore")
+        except Exception as exc:
+            logger.warning("Failed to fetch %s: %s", url, exc)
+            return None
+
+        self._write_cached_html(url, content)
+        return content
+
+    def fetch_json(self, url: str, use_cache: bool = False) -> Optional[object]:
+        """Fetch and decode JSON content."""
+        text = self.fetch_text(url, use_cache=use_cache)
+        if not text:
+            return None
+        try:
+            return json.loads(text)
+        except Exception as exc:
+            logger.warning("Failed to decode JSON from %s: %s", url, exc)
+            return None
+
     def fetch_html(self, url: str, use_cache: bool = True) -> Optional[str]:
         """Fetch HTML with robots.txt, rate limiting, and /tmp cache."""
         if use_cache:
@@ -196,6 +244,243 @@ class BaseScraper(ABC):
             "links": links,
         }
 
+    def parse_main_content(self, url: str, html: str) -> Dict[str, object]:
+        """Extract the main article/body content and metadata from HTML."""
+        fragment = html
+        for pattern in (
+            r"(?is)<main[^>]*>(.*?)</main>",
+            r"(?is)<article[^>]*>(.*?)</article>",
+            r"(?is)<div[^>]+id=[\"']content[\"'][^>]*>(.*?)</div>",
+            r"(?is)<body[^>]*>(.*?)</body>",
+        ):
+            match = re.search(pattern, html)
+            if match:
+                fragment = match.group(1)
+                break
+
+        fragment = re.sub(r"(?is)<(nav|footer|aside|script|style|noscript|svg)[^>]*>.*?</\1>", " ", fragment)
+        parsed = self.parse_html(url, fragment)
+        if not parsed["title"] or parsed["title"] == url:
+            title_match = re.search(r"(?is)<title[^>]*>(.*?)</title>", html)
+            if title_match:
+                parsed["title"] = self._clean_text(re.sub(r"<[^>]+>", " ", title_match.group(1))) or url
+        return parsed
+
+    def extract_urls_from_sitemap(self, sitemap_text: str) -> List[str]:
+        """Parse sitemap XML and return URL locations."""
+        try:
+            root = ET.fromstring(sitemap_text)
+        except Exception as exc:
+            logger.warning("Failed to parse sitemap XML: %s", exc)
+            return []
+
+        urls: List[str] = []
+        for element in root.iter():
+            if element.tag.endswith("loc") and element.text:
+                urls.append(element.text.strip())
+        return urls
+
+    def parse_llms_index(self, index_text: str, base_url: str) -> List[Dict[str, str]]:
+        """Parse llms.txt style markdown index links."""
+        entries: List[Dict[str, str]] = []
+        current_section = ""
+        for raw_line in index_text.splitlines():
+            line = raw_line.strip()
+            if line.startswith("## "):
+                current_section = line[3:].strip()
+                continue
+            if not line.startswith("- ["):
+                continue
+            match = re.match(r"- \[(?P<title>.+?)\]\((?P<url>[^)]+)\):?\s*(?P<desc>.*)", line)
+            if not match:
+                continue
+            url = parse.urljoin(base_url, match.group("url").strip())
+            entries.append(
+                {
+                    "title": match.group("title").strip(),
+                    "url": url,
+                    "description": match.group("desc").strip(),
+                    "section": current_section,
+                }
+            )
+        return entries
+
+    def parse_llms_full_documents(self, text: str, base_url: str) -> List[Dict[str, str]]:
+        """Parse llms-full style sections with URL:/Source: markers."""
+        lines = text.splitlines()
+        documents: List[Dict[str, str]] = []
+        current_h2 = ""
+        current_h3 = ""
+        index = 0
+
+        def lookahead_source(start: int) -> Tuple[Optional[str], Optional[int]]:
+            for offset in range(start + 1, min(len(lines), start + 8)):
+                stripped = lines[offset].strip()
+                if stripped.startswith("URL:"):
+                    return stripped.split(":", 1)[1].strip(), offset
+                if stripped.startswith("Source:"):
+                    source_value = stripped.split(":", 1)[1].strip()
+                    markdown_match = re.search(r"\(([^)]+)\)", source_value)
+                    if markdown_match:
+                        return parse.urljoin(base_url, markdown_match.group(1).strip()), offset
+                    if source_value.startswith("http"):
+                        return source_value, offset
+            return None, None
+
+        while index < len(lines):
+            line = lines[index].rstrip()
+            if line.startswith("## "):
+                current_h2 = line[3:].strip()
+                current_h3 = ""
+                index += 1
+                continue
+            if line.startswith("### "):
+                current_h3 = line[4:].strip()
+                index += 1
+                continue
+            if not line.startswith("# "):
+                index += 1
+                continue
+
+            title = line[2:].strip()
+            url, source_line_index = lookahead_source(index)
+            if not url or source_line_index is None:
+                index += 1
+                continue
+
+            body_start = source_line_index + 1
+            body_end = len(lines)
+            probe = body_start
+            while probe < len(lines):
+                candidate = lines[probe].rstrip()
+                if candidate.startswith("# "):
+                    next_url, _ = lookahead_source(probe)
+                    if next_url:
+                        body_end = probe
+                        break
+                probe += 1
+
+            body = "\n".join(lines[body_start:body_end]).strip()
+            documents.append(
+                {
+                    "title": title,
+                    "url": parse.urljoin(base_url, url),
+                    "section": current_h3 or current_h2 or title,
+                    "text": body,
+                }
+            )
+            index = body_end
+        return documents
+
+    def create_document(
+        self,
+        *,
+        url: str,
+        title: str,
+        text: str,
+        doc_type: str,
+        section: str,
+        version: Optional[str] = None,
+    ) -> RawDocument:
+        """Create a RawDocument with normalized metadata."""
+        cleaned_text = self._clean_text(text)
+        normalized_url = self.canonicalize_url(url)
+        return RawDocument(
+            text=cleaned_text,
+            url=normalized_url,
+            title=self._clean_text(title) or normalized_url,
+            provider=self.provider,
+            tool_name=self.tool_name,
+            doc_type=doc_type,
+            section=self._clean_text(section) or self._clean_text(title) or normalized_url,
+            version=version or self.extract_version(normalized_url, title, cleaned_text),
+            language="en",
+            is_deprecated=self.detect_deprecated(cleaned_text),
+            code_heavy=self.detect_code_heavy(cleaned_text),
+            raw_html="",
+        )
+
+    def classify_doc_type(self, url: str, title: str, text: str) -> str:
+        """Infer doc_type from URL/title/text heuristics."""
+        haystack = f"{url} {title} {text[:1000]}".lower()
+        if any(token in haystack for token in ("api", "reference", "sdk", "parameter", "method", "cli reference")):
+            return "api_reference"
+        if any(token in haystack for token in ("getting started", "quickstart", "first steps", "install")):
+            return "getting_started"
+        if any(token in haystack for token in ("changelog", "release notes", "what's new")):
+            return "changelog"
+        if any(token in haystack for token in ("model card", "benchmark", "context length", "hugging face")):
+            return "model_card"
+        if any(token in haystack for token in ("config", "configuration", "settings", "environment variables")):
+            return "config_reference"
+        if any(token in haystack for token in ("faq", "frequently asked", "troubleshooting")):
+            return "faq"
+        return "guide"
+
+    def extract_version(self, url: str, title: str, text: str) -> Optional[str]:
+        match = re.search(r"\b(v?\d+\.\d+(?:\.\d+)?)\b", f"{url} {title} {text[:300]}")
+        return match.group(1) if match else None
+
+    def detect_deprecated(self, text: str) -> bool:
+        lowered = text.lower()
+        return "deprecated" in lowered or "no longer supported" in lowered
+
+    def detect_code_heavy(self, text: str) -> bool:
+        lines = [line for line in text.splitlines() if line.strip()]
+        if not lines:
+            return False
+        code_like = sum(
+            1
+            for line in lines
+            if line.startswith(("    ", "\t", "$", "def ", "class ", "import ", "from ", "npm ", "pip ", "curl "))
+            or "```" in line
+        )
+        return (code_like / len(lines)) > 0.3
+
+    def should_store_document(self, document: RawDocument) -> bool:
+        """Provider hook to decide whether a parsed document should be stored."""
+        return True
+
+    def deduplicate_documents(self, documents: Iterable[RawDocument]) -> List[RawDocument]:
+        """Deduplicate documents by canonical URL and content signature."""
+        deduped: List[RawDocument] = []
+        seen: Set[Tuple[str, str]] = set()
+        for document in documents:
+            canonical_url = self.canonicalize_url(document.url)
+            signature = hashlib.sha256(document.text.encode("utf-8")).hexdigest()
+            key = (canonical_url, signature)
+            if key in seen:
+                continue
+            seen.add(key)
+            document.url = canonical_url
+            deduped.append(document)
+        return deduped
+
+    def canonicalize_url(self, url: str) -> str:
+        """Normalize URL for deduplication and storage."""
+        parsed = parse.urlparse(url)
+        path = parsed.path.rstrip("/") or "/"
+        return parse.urlunparse((parsed.scheme, parsed.netloc, path, "", "", ""))
+
+    def is_english_url(self, url: str) -> bool:
+        """Return whether a URL belongs to the English docs surface."""
+        path = parse.urlparse(url).path.lower().strip("/")
+        if not path:
+            return True
+        segments = path.split("/")
+        for segment in segments[:2]:
+            if segment in TRANSLATED_SEGMENTS:
+                return False
+        return True
+
+    def is_excluded_doc_url(self, url: str) -> bool:
+        """Return whether the URL should be excluded from docs ingestion."""
+        parsed = parse.urlparse(url)
+        path = parsed.path.lower()
+        if any(path.endswith(suffix) for suffix in ASSET_SUFFIXES):
+            return True
+        return any(f"/{term}" in path for term in EXCLUDED_DOC_TERMS)
+
     def _extract_links(self, url: str, html: str) -> List[str]:
         hrefs = re.findall(r'href=["\']([^"\']+)["\']', html, flags=re.IGNORECASE)
         normalized: List[str] = []
@@ -224,22 +509,7 @@ class BaseScraper(ABC):
 
     def should_follow_url(self, url: str) -> bool:
         """Return whether a discovered URL should be crawled."""
-        path = (parse.urlparse(url).path or "").lower()
-        blocked_suffixes = (
-            ".css",
-            ".js",
-            ".png",
-            ".jpg",
-            ".jpeg",
-            ".gif",
-            ".svg",
-            ".ico",
-            ".webp",
-            ".xml",
-            ".txt",
-            ".pdf",
-        )
-        return not path.endswith(blocked_suffixes)
+        return not self.is_excluded_doc_url(url)
 
     def _is_allowed_domain(self, url: str) -> bool:
         hostname = (parse.urlparse(url).hostname or "").lower()
@@ -363,25 +633,20 @@ class GenericHTMLDocsScraper(BaseScraper):
             if not html:
                 continue
 
-            parsed = self.parse_html(url, html)
+            parsed = self.parse_main_content(url, html)
             text = str(parsed["text"])
             if text:
-                documents.append(
-                    RawDocument(
-                        text=text,
-                        url=url,
-                        title=str(parsed["title"]),
-                        provider=self.provider,
-                        tool_name=self.tool_name,
-                        doc_type=self.classify_doc_type(url, str(parsed["title"]), text),
-                        section=str(parsed["section"]),
-                        version=self.extract_version(url, str(parsed["title"]), text),
-                        is_deprecated=self.detect_deprecated(text),
-                        code_heavy=self.detect_code_heavy(text),
-                        raw_html=html,
-                    )
+                document = self.create_document(
+                    url=url,
+                    title=str(parsed["title"]),
+                    text=text,
+                    doc_type=self.classify_doc_type(url, str(parsed["title"]), text),
+                    section=str(parsed["section"]),
                 )
-                logger.info("Scraped %s", url)
+                document.raw_html = html
+                if self.should_store_document(document):
+                    documents.append(document)
+                    logger.info("Scraped %s", url)
 
             for link in parsed["links"]:
                 if link in visited or link in queue:
@@ -390,7 +655,7 @@ class GenericHTMLDocsScraper(BaseScraper):
                     continue
                 queue.append(link)
 
-        return documents
+        return self.deduplicate_documents(documents)
 
     def classify_doc_type(self, url: str, title: str, text: str) -> str:
         haystack = f"{url} {title} {text[:1000]}".lower()
