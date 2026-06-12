@@ -88,8 +88,24 @@ class DocsRetriever:
         # Step 1: Classify the query
         query_profile = classify_query(query)
 
-        # Step 2: Determine provider filter from classification
-        effective_provider = provider_filter or query_profile.primary_provider
+        # Step 2: Determine provider filter from classification.
+        # Rules:
+        # - Explicit provider_filter argument always wins (caller override).
+        # - Comparison / multi-provider queries → no filter (cross-provider retrieval).
+        # - Single provider detected with medium/high confidence → apply filter.
+        # - Low confidence (no provider detected) → no filter.
+        if provider_filter:
+            # Explicit override from caller
+            effective_provider = provider_filter
+        elif query_profile.is_comparison or query_profile.is_multi_provider:
+            # Comparison queries need cross-provider results
+            effective_provider = None
+        elif query_profile.provider_confidence in ("high", "medium"):
+            # Single provider detected with sufficient confidence
+            effective_provider = query_profile.primary_provider
+        else:
+            # Low confidence or no provider detected → cross-provider retrieval
+            effective_provider = None
 
         # Step 3: Hybrid search
         search_results = self._hybrid.search(
@@ -106,6 +122,7 @@ class DocsRetriever:
             "tools_detected": query_profile.tools,
             "is_comparison": query_profile.is_comparison,
             "provider_filter_applied": effective_provider,
+            "provider_confidence": query_profile.provider_confidence,
         }
 
         if not search_results:

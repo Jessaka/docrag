@@ -2,10 +2,15 @@
 
 Classifies user queries into labels for query type, provider, and tool name.
 Returns a QueryProfile used by the retriever to optimize search strategy.
+
+Provider detection confidence:
+- HIGH (2+ keyword hits for same provider): apply strict provider filter
+- MEDIUM (1 keyword hit): apply provider filter
+- LOW (0 hits, or ambiguous): no filter → cross-provider retrieval
 """
 import logging
 from dataclasses import dataclass, field
-from typing import List, Set, Optional
+from typing import List, Set, Optional, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -84,20 +89,47 @@ _KEYWORD_TO_LABELS: dict = {
     "can i": "faq",
     "does": "faq",
     "support": "faq",
-    # Provider keywords
+    # Provider keywords — Anthropic / Claude Code
     "anthropic": "provider:anthropic",
     "claude": "provider:anthropic",
+    "claude code": "provider:anthropic",
+    "claude-code": "provider:anthropic",
+    "claude.ai": "provider:anthropic",
+    "sonnet": "provider:anthropic",
+    "haiku": "provider:anthropic",
+    "opus": "provider:anthropic",
+    # Provider keywords — Cursor
     "cursor": "provider:cursor",
+    "cursor ide": "provider:cursor",
+    "cursor editor": "provider:cursor",
+    "cursor ai": "provider:cursor",
+    "cursor tab": "provider:cursor",
+    "cursor chat": "provider:cursor",
+    "cursor composer": "provider:cursor",
+    # Provider keywords — Opencode
     "opencode": "provider:opencode",
+    "open code": "provider:opencode",
+    # Provider keywords — OpenAI / Codex
     "openai": "provider:openai",
     "codex": "provider:openai",
+    "codex cli": "provider:openai",
+    "gpt": "provider:openai",
+    "chatgpt": "provider:openai",
+    "o1": "provider:openai",
+    "o3": "provider:openai",
+    # Provider keywords — Hermes
     "hermes": "provider:hermes",
     "nous": "provider:hermes",
+    "nous hermes": "provider:hermes",
+    "nous-hermes": "provider:hermes",
+    # Provider keywords — OpenClaw
     "openclaw": "provider:openclaw",
-    # Tool keywords
+    "open claw": "provider:openclaw",
+    # Tool keywords (more specific — multi-word first for correct matching)
     "claude code": "tool:claude-code",
     "claude-code": "tool:claude-code",
     "cursor agent": "tool:cursor",
+    "cursor ide": "tool:cursor",
     "opencode tool": "tool:opencode",
     "codex cli": "tool:codex",
     "hermes model": "tool:hermes",
@@ -117,13 +149,40 @@ class QueryProfile:
     is_multi_provider: bool = False
     is_comparison: bool = False
     is_out_of_scope: bool = False
+    # provider_hits: number of keyword matches per provider (used for confidence)
+    provider_hits: Dict[str, int] = field(default_factory=dict)
 
     @property
     def primary_provider(self) -> Optional[str]:
-        """Return the primary provider if exactly one is identified."""
+        """Return the primary provider if exactly one is identified with sufficient confidence.
+
+        Returns None when:
+        - No provider detected
+        - Multiple providers detected (comparison / multi-provider query)
+        - Single provider detected but zero keyword hits (should not happen, but guard)
+        """
         if len(self.providers) == 1:
             return self.providers[0]
         return None
+
+    @property
+    def provider_confidence(self) -> str:
+        """Confidence level of provider detection.
+
+        Returns:
+            "high"   — 2+ keyword hits for the same provider
+            "medium" — exactly 1 keyword hit
+            "low"    — no provider detected or ambiguous (multi-provider)
+        """
+        if not self.providers or len(self.providers) > 1:
+            return "low"
+        provider = self.providers[0]
+        hits = self.provider_hits.get(provider, 0)
+        if hits >= 2:
+            return "high"
+        if hits == 1:
+            return "medium"
+        return "low"
 
     @property
     def primary_tool(self) -> Optional[str]:
@@ -137,25 +196,37 @@ def classify_query(query: str) -> QueryProfile:
     """Classify a user query into a QueryProfile with labels.
 
     Uses keyword matching to identify query type, providers, and tools.
-    This is a lightweight classifier that runs before the full retrieval pipeline.
+    Tracks per-provider keyword hit counts to determine detection confidence.
+
+    Confidence levels:
+    - high (2+ hits): strong provider signal → apply strict provider filter
+    - medium (1 hit): single keyword match → apply provider filter
+    - low (0 hits or multi-provider): ambiguous → cross-provider retrieval
 
     Args:
         query: The raw user query string.
 
     Returns:
-        QueryProfile with classified labels.
+        QueryProfile with classified labels and provider_hits counts.
     """
     query_lower = query.lower().strip()
     labels: Set[str] = set()
     providers: Set[str] = set()
     tools: Set[str] = set()
+    # Count keyword hits per provider for confidence scoring
+    provider_hits: Dict[str, int] = {}
 
-    # Check each keyword against the query
-    for keyword, label in _KEYWORD_TO_LABELS.items():
+    # Sort keywords by length descending so multi-word phrases match before substrings
+    sorted_keywords = sorted(_KEYWORD_TO_LABELS.keys(), key=len, reverse=True)
+
+    for keyword in sorted_keywords:
+        label = _KEYWORD_TO_LABELS[keyword]
         if keyword in query_lower:
             labels.add(label)
             if label.startswith("provider:"):
-                providers.add(label.replace("provider:", ""))
+                provider_name = label.replace("provider:", "")
+                providers.add(provider_name)
+                provider_hits[provider_name] = provider_hits.get(provider_name, 0) + 1
             elif label.startswith("tool:"):
                 tools.add(label.replace("tool:", ""))
 
@@ -199,10 +270,12 @@ def classify_query(query: str) -> QueryProfile:
         is_multi_provider=is_multi_provider,
         is_comparison=is_comparison,
         is_out_of_scope=is_out_of_scope,
+        provider_hits=provider_hits,
     )
 
     logger.debug(
         f"Classified query: type={query_type}, providers={providers}, "
-        f"tools={tools}, comparison={is_comparison}, out_of_scope={is_out_of_scope}"
+        f"tools={tools}, comparison={is_comparison}, out_of_scope={is_out_of_scope}, "
+        f"provider_hits={provider_hits}, confidence={profile.provider_confidence}"
     )
     return profile

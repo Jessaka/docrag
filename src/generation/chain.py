@@ -199,13 +199,16 @@ class DocsRAGChain:
                 query_vector=query_vector,
                 providers=query_profile.providers,
             )
-        else:
-            retrieval = self._retriever.retrieve(
-                query=query,
-                query_vector=query_vector,
-                provider_filter=query_profile.primary_provider,
-            )
+            # retrieve_for_comparison already caps results per provider, so
+            # don't apply the single-provider max_context_results slice here —
+            # that would drop every provider after the first.
+            return retrieval.get("results", [])
 
+        retrieval = self._retriever.retrieve(
+            query=query,
+            query_vector=query_vector,
+            provider_filter=query_profile.primary_provider,
+        )
         return retrieval.get("results", [])[: self._max_context_results]
 
     async def _rewrite_query(self, query: str) -> str:
@@ -260,6 +263,8 @@ class DocsRAGChain:
         if len(normalized.split()) <= 2:
             return RouteStrategy.CLARIFICATION_DIRECT
         if query_profile.is_comparison:
+            if len(query_profile.providers) > 1 or len(query_profile.tools) > 1:
+                return RouteStrategy.DOCS_RAG
             return RouteStrategy.COMPARISON_DIRECT
         if query_profile.primary_provider or query_profile.primary_tool:
             return RouteStrategy.DOCS_RAG
