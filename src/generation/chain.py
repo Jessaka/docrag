@@ -18,6 +18,10 @@ from src.retrieval.retriever import DocsRetriever
 
 logger = logging.getLogger(__name__)
 
+CACHED_SYSTEM_PROMPT = [
+    {"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}
+]
+
 ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
 EMBEDDING_MODEL = "text-embedding-3-small"
 MAX_CONTEXT_RESULTS = 5
@@ -127,7 +131,7 @@ class DocsRAGChain:
         async with self._anthropic.messages.stream(
             model=self._anthropic_model,
             max_tokens=MAX_OUTPUT_TOKENS,
-            system=SYSTEM_PROMPT,
+            system=CACHED_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": self._build_user_prompt(query, plan["context"])}],
         ) as stream:
             async for text in stream.text_stream:
@@ -191,7 +195,11 @@ class DocsRAGChain:
             self._retriever.initialize()
             self._retriever_initialized = True
 
-        query_vector = await self._embed_query(await self._rewrite_query(query))
+        if self._needs_rewrite(query_profile):
+            retrieval_query = await self._rewrite_query(query)
+        else:
+            retrieval_query = query
+        query_vector = await self._embed_query(retrieval_query)
 
         if query_profile.is_comparison and len(query_profile.providers) > 1:
             retrieval = self._retriever.retrieve_for_comparison(
@@ -210,6 +218,17 @@ class DocsRAGChain:
             provider_filter=query_profile.primary_provider,
         )
         return retrieval.get("results", [])[: self._max_context_results]
+
+    def _needs_rewrite(self, query_profile: QueryProfile) -> bool:
+        """Decide whether the extra rewrite round-trip is worth its latency.
+
+        classify_query already extracted a provider/tool and a specific
+        query_type (not the "faq" default) from keyword matches — that's
+        enough signal for embedding/BM25 retrieval, so skip the rewrite.
+        Genuinely vague queries (low confidence, no type label matched)
+        still get rewritten to extract retrieval-relevant terms.
+        """
+        return query_profile.provider_confidence == "low" or query_profile.query_type == "faq"
 
     async def _rewrite_query(self, query: str) -> str:
         """Rewrite the query for retrieval, falling back to the raw query."""
@@ -243,7 +262,7 @@ class DocsRAGChain:
         response = await self._anthropic.messages.create(
             model=self._anthropic_model,
             max_tokens=MAX_OUTPUT_TOKENS,
-            system=SYSTEM_PROMPT,
+            system=CACHED_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": self._build_user_prompt(query, context)}],
         )
         answer = "\n".join(
