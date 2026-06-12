@@ -263,8 +263,17 @@ class DocsRAGChain:
         if len(normalized.split()) <= 2:
             return RouteStrategy.CLARIFICATION_DIRECT
         if query_profile.is_comparison:
+            # Cross-provider comparison ("Cursor vs Claude Code") -> docs_rag,
+            # retrieve_for_comparison fans out per provider.
             if len(query_profile.providers) > 1 or len(query_profile.tools) > 1:
                 return RouteStrategy.DOCS_RAG
+            # Same-provider comparison ("Hermes 4 14B vs 70B") -> docs_rag,
+            # retrieve normally with that provider's filter so the LLM gets
+            # real grounded context to compare against.
+            if len(query_profile.providers) == 1 or len(query_profile.tools) == 1:
+                return RouteStrategy.DOCS_RAG
+            # No specific provider/tool identified -> genuinely ambiguous,
+            # ask the user what they want compared.
             return RouteStrategy.COMPARISON_DIRECT
         if query_profile.primary_provider or query_profile.primary_tool:
             return RouteStrategy.DOCS_RAG

@@ -1,0 +1,755 @@
+{
+  "version": 1,
+  "description": "DocsRAG benchmark queries grouped by provider. Expected route uses generation route values from RouteStrategy.",
+  "queries": [
+    {
+      "id": "anthropic_01_install_web",
+      "provider_label": "Claude Code",
+      "category": "installation",
+      "query": "Jak začnu používat Claude Code na webu?",
+      "expected_provider": "anthropic",
+      "expected_tool": "claude-code",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://code.claude.com/docs/en/web-quickstart"
+      ]
+    },
+    {
+      "id": "anthropic_02_install_desktop",
+      "provider_label": "Claude Code",
+      "category": "installation",
+      "query": "How do I get started with the Claude Code desktop app?",
+      "expected_provider": "anthropic",
+      "expected_tool": "claude-code",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://code.claude.com/docs/en/desktop-quickstart"
+      ]
+    },
+    {
+      "id": "anthropic_03_configuration_org",
+      "provider_label": "Claude Code",
+      "category": "configuration",
+      "query": "How do I set up Claude Code for an organization?",
+      "expected_provider": "anthropic",
+      "expected_tool": "claude-code",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://code.claude.com/docs/en/admin-setup"
+      ]
+    },
+    {
+      "id": "anthropic_04_hooks",
+      "provider_label": "Claude Code",
+      "category": "hooks",
+      "query": "What are Claude Code hooks and how do they control agent behavior?",
+      "expected_provider": "anthropic",
+      "expected_tool": "claude-code",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://code.claude.com/docs/en/agent-sdk/hooks"
+      ]
+    },
+    {
+      "id": "anthropic_05_agents",
+      "provider_label": "Claude Code",
+      "category": "agents",
+      "query": "How does the Claude Code agent loop work?",
+      "expected_provider": "anthropic",
+      "expected_tool": "claude-code",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://code.claude.com/docs/en/agent-sdk/agent-loop"
+      ]
+    },
+    {
+      "id": "anthropic_06_subagents",
+      "provider_label": "Claude Code",
+      "category": "agents",
+      "query": "Jak fungují subagenti v Claude Code SDK?",
+      "expected_provider": "anthropic",
+      "expected_tool": "claude-code",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://code.claude.com/docs/en/agent-sdk/subagents"
+      ]
+    },
+    {
+      "id": "anthropic_07_mcp",
+      "provider_label": "Claude Code",
+      "category": "MCP",
+      "query": "How do I connect Claude Code to external tools with MCP?",
+      "expected_provider": "anthropic",
+      "expected_tool": "claude-code",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://code.claude.com/docs/en/agent-sdk/mcp"
+      ]
+    },
+    {
+      "id": "anthropic_08_permissions",
+      "provider_label": "Claude Code",
+      "category": "permissions",
+      "query": "How do I configure permissions in Claude Code Agent SDK?",
+      "expected_provider": "anthropic",
+      "expected_tool": "claude-code",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://code.claude.com/docs/en/agent-sdk/permissions"
+      ]
+    },
+    {
+      "id": "anthropic_09_troubleshooting",
+      "provider_label": "Claude Code",
+      "category": "troubleshooting",
+      "query": "How do I debug Claude Code configuration or recover from bad file changes?",
+      "expected_provider": "anthropic",
+      "expected_tool": "claude-code",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://code.claude.com/docs/en/agent-sdk/file-checkpointing",
+        "https://code.claude.com/docs/en/debug-your-config"
+      ]
+    },
+    {
+      "id": "anthropic_10_comparison_cursor",
+      "provider_label": "Claude Code",
+      "category": "comparisons",
+      "query": "Compare Claude Code hooks with Cursor hooks for controlling agent behavior.",
+      "expected_provider": "anthropic",
+      "expected_tool": "claude-code",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://code.claude.com/docs/en/agent-sdk/hooks",
+        "https://cursor.com/docs/hooks"
+      ]
+    },
+
+    {
+      "id": "cursor_01_install_cli",
+      "provider_label": "Cursor",
+      "category": "installation",
+      "query": "How do I install the Cursor CLI?",
+      "expected_provider": "cursor",
+      "expected_tool": "cursor",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://cursor.com/docs/cli/installation"
+      ]
+    },
+    {
+      "id": "cursor_02_configuration",
+      "provider_label": "Cursor",
+      "category": "configuration",
+      "query": "How do I configure Cursor CLI settings?",
+      "expected_provider": "cursor",
+      "expected_tool": "cursor",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://cursor.com/docs/cli/reference/configuration"
+      ]
+    },
+    {
+      "id": "cursor_03_hooks",
+      "provider_label": "Cursor",
+      "category": "hooks",
+      "query": "What are Cursor hooks and when should I use them?",
+      "expected_provider": "cursor",
+      "expected_tool": "cursor",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://cursor.com/docs/hooks"
+      ]
+    },
+    {
+      "id": "cursor_04_agents_window",
+      "provider_label": "Cursor",
+      "category": "agents",
+      "query": "What is the Agents Window in Cursor?",
+      "expected_provider": "cursor",
+      "expected_tool": "cursor",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://cursor.com/docs/agent/agents-window"
+      ]
+    },
+    {
+      "id": "cursor_05_agent_review",
+      "provider_label": "Cursor",
+      "category": "agents",
+      "query": "How does Agent Review work in Cursor?",
+      "expected_provider": "cursor",
+      "expected_tool": "cursor",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://cursor.com/docs/agent/agent-review"
+      ]
+    },
+    {
+      "id": "cursor_06_mcp",
+      "provider_label": "Cursor",
+      "category": "MCP",
+      "query": "How do I use MCP in Cursor?",
+      "expected_provider": "cursor",
+      "expected_tool": "cursor",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://cursor.com/docs/mcp",
+        "https://cursor.com/docs/cli/mcp"
+      ]
+    },
+    {
+      "id": "cursor_07_permissions",
+      "provider_label": "Cursor",
+      "category": "permissions",
+      "query": "How do Cursor permissions work in the CLI?",
+      "expected_provider": "cursor",
+      "expected_tool": "cursor",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://cursor.com/docs/cli/reference/permissions",
+        "https://cursor.com/docs/reference/permissions"
+      ]
+    },
+    {
+      "id": "cursor_08_troubleshooting_auth",
+      "provider_label": "Cursor",
+      "category": "troubleshooting",
+      "query": "How do I troubleshoot Cursor CLI authentication problems?",
+      "expected_provider": "cursor",
+      "expected_tool": "cursor",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://cursor.com/docs/cli/reference/authentication"
+      ]
+    },
+    {
+      "id": "cursor_09_troubleshooting_debug",
+      "provider_label": "Cursor",
+      "category": "troubleshooting",
+      "query": "How do I debug Cursor agent behavior?",
+      "expected_provider": "cursor",
+      "expected_tool": "cursor",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://cursor.com/docs/agent/debug-mode"
+      ]
+    },
+    {
+      "id": "cursor_10_comparison_claude",
+      "provider_label": "Cursor",
+      "category": "comparisons",
+      "query": "Compare Cursor hooks with Claude Code hooks.",
+      "expected_provider": "cursor",
+      "expected_tool": "cursor",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://cursor.com/docs/hooks",
+        "https://code.claude.com/docs/en/agent-sdk/hooks"
+      ]
+    },
+
+    {
+      "id": "opencode_01_install_intro",
+      "provider_label": "OpenCode",
+      "category": "installation",
+      "query": "How do I get started with OpenCode?",
+      "expected_provider": "opencode",
+      "expected_tool": "opencode",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://opencode.ai/docs"
+      ]
+    },
+    {
+      "id": "opencode_02_install_ide",
+      "provider_label": "OpenCode",
+      "category": "installation",
+      "query": "How do I use OpenCode in my IDE?",
+      "expected_provider": "opencode",
+      "expected_tool": "opencode",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://opencode.ai/docs/ide"
+      ]
+    },
+    {
+      "id": "opencode_03_configuration_tools",
+      "provider_label": "OpenCode",
+      "category": "configuration",
+      "query": "How do I configure tools in OpenCode?",
+      "expected_provider": "opencode",
+      "expected_tool": "opencode",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://opencode.ai/docs/tools"
+      ]
+    },
+    {
+      "id": "opencode_04_permissions",
+      "provider_label": "OpenCode",
+      "category": "permissions",
+      "query": "How do permissions work in OpenCode?",
+      "expected_provider": "opencode",
+      "expected_tool": "opencode",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://opencode.ai/docs/permissions"
+      ]
+    },
+    {
+      "id": "opencode_05_agents",
+      "provider_label": "OpenCode",
+      "category": "agents",
+      "query": "How do agents work in OpenCode?",
+      "expected_provider": "opencode",
+      "expected_tool": "opencode",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://opencode.ai/docs/agents"
+      ]
+    },
+    {
+      "id": "opencode_06_agent_skills",
+      "provider_label": "OpenCode",
+      "category": "agents",
+      "query": "What are agent skills in OpenCode?",
+      "expected_provider": "opencode",
+      "expected_tool": "opencode",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://opencode.ai/docs/skills"
+      ]
+    },
+    {
+      "id": "opencode_07_mcp",
+      "provider_label": "OpenCode",
+      "category": "MCP",
+      "query": "How do I connect MCP servers in OpenCode?",
+      "expected_provider": "opencode",
+      "expected_tool": "opencode",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://opencode.ai/docs/mcp-servers"
+      ]
+    },
+    {
+      "id": "opencode_08_hooks_plugins",
+      "provider_label": "OpenCode",
+      "category": "hooks",
+      "query": "How do I extend OpenCode with plugins or hook-like automation?",
+      "expected_provider": "opencode",
+      "expected_tool": "opencode",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://opencode.ai/docs/plugins",
+        "https://opencode.ai/docs/tools"
+      ]
+    },
+    {
+      "id": "opencode_09_troubleshooting",
+      "provider_label": "OpenCode",
+      "category": "troubleshooting",
+      "query": "How do I troubleshoot OpenCode?",
+      "expected_provider": "opencode",
+      "expected_tool": "opencode",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://opencode.ai/docs/troubleshooting"
+      ]
+    },
+    {
+      "id": "opencode_10_comparison_cursor",
+      "provider_label": "OpenCode",
+      "category": "comparisons",
+      "query": "Compare OpenCode agents and skills with Cursor agents.",
+      "expected_provider": "opencode",
+      "expected_tool": "opencode",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://opencode.ai/docs/agents",
+        "https://opencode.ai/docs/skills",
+        "https://cursor.com/docs/agent/agents-window"
+      ]
+    },
+
+    {
+      "id": "openai_01_codex_app",
+      "provider_label": "Codex",
+      "category": "installation",
+      "query": "How do I get started with the Codex app?",
+      "expected_provider": "openai",
+      "expected_tool": "codex",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://developers.openai.com/codex/app"
+      ]
+    },
+    {
+      "id": "openai_02_configuration_basic",
+      "provider_label": "Codex",
+      "category": "configuration",
+      "query": "How do I configure Codex for daily use?",
+      "expected_provider": "openai",
+      "expected_tool": "codex",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://developers.openai.com/codex/config-basic",
+        "https://developers.openai.com/codex/config-reference"
+      ]
+    },
+    {
+      "id": "openai_03_hooks",
+      "provider_label": "Codex",
+      "category": "hooks",
+      "query": "What are Codex hooks and how are they configured?",
+      "expected_provider": "openai",
+      "expected_tool": "codex",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://developers.openai.com/codex/hooks"
+      ]
+    },
+    {
+      "id": "openai_04_subagents",
+      "provider_label": "Codex",
+      "category": "agents",
+      "query": "How do subagents work in Codex?",
+      "expected_provider": "openai",
+      "expected_tool": "codex",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://developers.openai.com/codex/subagents",
+        "https://developers.openai.com/codex/concepts/subagents"
+      ]
+    },
+    {
+      "id": "openai_05_mcp",
+      "provider_label": "Codex",
+      "category": "MCP",
+      "query": "How does Codex use the Model Context Protocol?",
+      "expected_provider": "openai",
+      "expected_tool": "codex",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://developers.openai.com/codex/mcp"
+      ]
+    },
+    {
+      "id": "openai_06_permissions",
+      "provider_label": "Codex",
+      "category": "permissions",
+      "query": "How do permissions work in Codex?",
+      "expected_provider": "openai",
+      "expected_tool": "codex",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://developers.openai.com/codex/permissions"
+      ]
+    },
+    {
+      "id": "openai_07_troubleshooting",
+      "provider_label": "Codex",
+      "category": "troubleshooting",
+      "query": "How do I troubleshoot problems in the Codex app?",
+      "expected_provider": "openai",
+      "expected_tool": "codex",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://developers.openai.com/codex/app/troubleshooting"
+      ]
+    },
+    {
+      "id": "openai_08_automations",
+      "provider_label": "Codex",
+      "category": "agents",
+      "query": "How do automations work in the Codex app?",
+      "expected_provider": "openai",
+      "expected_tool": "codex",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://developers.openai.com/codex/app/automations"
+      ]
+    },
+    {
+      "id": "openai_09_security",
+      "provider_label": "Codex",
+      "category": "permissions",
+      "query": "How do agent approvals and security work in Codex?",
+      "expected_provider": "openai",
+      "expected_tool": "codex",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://developers.openai.com/codex/agent-approvals-security",
+        "https://developers.openai.com/codex/security"
+      ]
+    },
+    {
+      "id": "openai_10_comparison_claude",
+      "provider_label": "Codex",
+      "category": "comparisons",
+      "query": "Compare Codex subagents with Claude Code subagents.",
+      "expected_provider": "openai",
+      "expected_tool": "codex",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://developers.openai.com/codex/subagents",
+        "https://code.claude.com/docs/en/agent-sdk/subagents"
+      ]
+    },
+
+    {
+      "id": "hermes_01_install_gguf",
+      "provider_label": "Hermes",
+      "category": "installation",
+      "query": "How do I run Hermes with a GGUF model locally?",
+      "expected_provider": "hermes",
+      "expected_tool": "hermes",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://huggingface.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF"
+      ]
+    },
+    {
+      "id": "hermes_02_configuration_system_prompt",
+      "provider_label": "Hermes",
+      "category": "configuration",
+      "query": "How should I configure the system prompt for Hermes?",
+      "expected_provider": "hermes",
+      "expected_tool": "hermes",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://huggingface.co/NousResearch/Hermes-4.3-36B"
+      ]
+    },
+    {
+      "id": "hermes_03_hooks_tool_use",
+      "provider_label": "Hermes",
+      "category": "hooks",
+      "query": "How does Hermes handle tool or function calling in agent workflows?",
+      "expected_provider": "hermes",
+      "expected_tool": "hermes",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://huggingface.co/NousResearch/Hermes-4.3-36B",
+        "https://huggingface.co/NousResearch/Hermes-3-Llama-3.1-8B"
+      ]
+    },
+    {
+      "id": "hermes_04_agents",
+      "provider_label": "Hermes",
+      "category": "agents",
+      "query": "Is Hermes suitable for agentic workflows?",
+      "expected_provider": "hermes",
+      "expected_tool": "hermes",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://huggingface.co/NousResearch/Hermes-3-Llama-3.1-8B",
+        "https://huggingface.co/NousResearch/Hermes-4.3-36B"
+      ]
+    },
+    {
+      "id": "hermes_05_mcp_tools",
+      "provider_label": "Hermes",
+      "category": "MCP",
+      "query": "Can Hermes be used with external tools or MCP-style integrations?",
+      "expected_provider": "hermes",
+      "expected_tool": "hermes",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://huggingface.co/NousResearch/Hermes-4.3-36B"
+      ]
+    },
+    {
+      "id": "hermes_06_permissions_safety",
+      "provider_label": "Hermes",
+      "category": "permissions",
+      "query": "What safety or permission considerations matter when Hermes can call tools?",
+      "expected_provider": "hermes",
+      "expected_tool": "hermes",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://huggingface.co/NousResearch/Hermes-4.3-36B"
+      ]
+    },
+    {
+      "id": "hermes_07_troubleshooting_quantization",
+      "provider_label": "Hermes",
+      "category": "troubleshooting",
+      "query": "Which Hermes variant should I try if I need a lighter local deployment or different quantization?",
+      "expected_provider": "hermes",
+      "expected_tool": "hermes",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://huggingface.co/NousResearch/Hermes-4-14B",
+        "https://huggingface.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF"
+      ]
+    },
+    {
+      "id": "hermes_08_json_mode",
+      "provider_label": "Hermes",
+      "category": "configuration",
+      "query": "Does Hermes support JSON or structured output patterns?",
+      "expected_provider": "hermes",
+      "expected_tool": "hermes",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://huggingface.co/NousResearch/Hermes-4.3-36B",
+        "https://huggingface.co/NousResearch/Hermes-3-Llama-3.1-8B"
+      ]
+    },
+    {
+      "id": "hermes_09_reasoning",
+      "provider_label": "Hermes",
+      "category": "agents",
+      "query": "Which Hermes model is better for stronger reasoning or larger agent workloads?",
+      "expected_provider": "hermes",
+      "expected_tool": "hermes",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://huggingface.co/NousResearch",
+        "https://huggingface.co/NousResearch/Hermes-4-405B-FP8"
+      ]
+    },
+    {
+      "id": "hermes_10_comparison_variants",
+      "provider_label": "Hermes",
+      "category": "comparisons",
+      "query": "Compare Hermes 4 14B and Hermes 4 70B for local use.",
+      "expected_provider": "hermes",
+      "expected_tool": "hermes",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://huggingface.co/NousResearch/Hermes-4-14B",
+        "https://huggingface.co/NousResearch/Hermes-4-70B"
+      ]
+    },
+
+    {
+      "id": "openclaw_01_install",
+      "provider_label": "OpenClaw",
+      "category": "installation",
+      "query": "How do I install OpenClaw?",
+      "expected_provider": "openclaw",
+      "expected_tool": "openclaw",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://docs.openclaw.ai/install"
+      ]
+    },
+    {
+      "id": "openclaw_02_setup",
+      "provider_label": "OpenClaw",
+      "category": "installation",
+      "query": "How do I set up OpenClaw after installation?",
+      "expected_provider": "openclaw",
+      "expected_tool": "openclaw",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://docs.openclaw.ai/start/setup",
+        "https://docs.openclaw.ai/cli/setup"
+      ]
+    },
+    {
+      "id": "openclaw_03_configuration",
+      "provider_label": "OpenClaw",
+      "category": "configuration",
+      "query": "How do I configure OpenClaw?",
+      "expected_provider": "openclaw",
+      "expected_tool": "openclaw",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://docs.openclaw.ai/cli/config",
+        "https://docs.openclaw.ai/gateway/configuration-reference"
+      ]
+    },
+    {
+      "id": "openclaw_04_permissions",
+      "provider_label": "OpenClaw",
+      "category": "permissions",
+      "query": "How do macOS permissions work in OpenClaw?",
+      "expected_provider": "openclaw",
+      "expected_tool": "openclaw",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://docs.openclaw.ai/platforms/mac/permissions"
+      ]
+    },
+    {
+      "id": "openclaw_05_hooks",
+      "provider_label": "OpenClaw",
+      "category": "hooks",
+      "query": "What are OpenClaw hooks and how do I use them?",
+      "expected_provider": "openclaw",
+      "expected_tool": "openclaw",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://docs.openclaw.ai/automation/hooks",
+        "https://docs.openclaw.ai/cli/hooks"
+      ]
+    },
+    {
+      "id": "openclaw_06_agents_runtime",
+      "provider_label": "OpenClaw",
+      "category": "agents",
+      "query": "How does the OpenClaw agent runtime work?",
+      "expected_provider": "openclaw",
+      "expected_tool": "openclaw",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://docs.openclaw.ai/agent-runtime-architecture",
+        "https://docs.openclaw.ai/concepts/agent"
+      ]
+    },
+    {
+      "id": "openclaw_07_multi_agent",
+      "provider_label": "OpenClaw",
+      "category": "agents",
+      "query": "How does multi-agent routing work in OpenClaw?",
+      "expected_provider": "openclaw",
+      "expected_tool": "openclaw",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://docs.openclaw.ai/concepts/multi-agent"
+      ]
+    },
+    {
+      "id": "openclaw_08_mcp",
+      "provider_label": "OpenClaw",
+      "category": "MCP",
+      "query": "How do I use MCP with OpenClaw?",
+      "expected_provider": "openclaw",
+      "expected_tool": "openclaw",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://docs.openclaw.ai/cli/mcp"
+      ]
+    },
+    {
+      "id": "openclaw_09_troubleshooting",
+      "provider_label": "OpenClaw",
+      "category": "troubleshooting",
+      "query": "How do I troubleshoot OpenClaw automation issues?",
+      "expected_provider": "openclaw",
+      "expected_tool": "openclaw",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://docs.openclaw.ai/automation/troubleshooting",
+        "https://docs.openclaw.ai/help/troubleshooting"
+      ]
+    },
+    {
+      "id": "openclaw_10_comparison_opencode",
+      "provider_label": "OpenClaw",
+      "category": "comparisons",
+      "query": "Compare OpenClaw agents with OpenCode agents.",
+      "expected_provider": "openclaw",
+      "expected_tool": "openclaw",
+      "expected_route": "docs_rag",
+      "expected_source_urls": [
+        "https://docs.openclaw.ai/agent-runtime-architecture",
+        "https://opencode.ai/docs/agents"
+      ]
+    }
+  ]
+}
