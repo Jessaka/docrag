@@ -8,7 +8,7 @@ class Settings(BaseSettings):
 
     # Anthropic
     ANTHROPIC_API_KEY: str = Field(..., env="ANTHROPIC_API_KEY")
-    ANTHROPIC_MODEL: str = Field("claude-sonnet-4-20250514", env="ANTHROPIC_MODEL")
+    ANTHROPIC_MODEL: str = Field("claude-sonnet-4-6", env="ANTHROPIC_MODEL")
 
     # OpenAI
     OPENAI_API_KEY: str = Field(..., env="OPENAI_API_KEY")

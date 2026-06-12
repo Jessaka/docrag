@@ -22,7 +22,6 @@ CACHED_SYSTEM_PROMPT = [
     {"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}
 ]
 
-ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
 EMBEDDING_MODEL = "text-embedding-3-small"
 MAX_CONTEXT_RESULTS = 5
 MAX_OUTPUT_TOKENS = 1024
@@ -44,7 +43,7 @@ class DocsRAGChain:
         response_cache: Optional[ResponseCache] = None,
         anthropic_client: Optional[AsyncAnthropic] = None,
         embedding_client: Optional[AsyncOpenAI] = None,
-        anthropic_model: str = ANTHROPIC_MODEL,
+        anthropic_model: Optional[str] = None,
         embedding_model: str = EMBEDDING_MODEL,
         max_context_results: int = MAX_CONTEXT_RESULTS,
     ):
@@ -52,7 +51,7 @@ class DocsRAGChain:
         self._cache = response_cache or ResponseCache()
         self._anthropic = anthropic_client or AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
         self._embedding_client = embedding_client or AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-        self._anthropic_model = anthropic_model
+        self._anthropic_model = anthropic_model or settings.ANTHROPIC_MODEL
         self._embedding_model = embedding_model
         self._max_context_results = max_context_results
         self._retriever_initialized = False
