@@ -33,7 +33,12 @@ class Settings(BaseSettings):
     DOCS_STORE_PATH: str = Field("data/docs_store.pkl", env="DOCS_STORE_PATH")
 
     # Reranker
+    RERANKER_BACKEND: str = Field("nvidia", env="RERANKER_BACKEND")
     RERANKER_MODEL: str = Field("BAAI/bge-reranker-v2-m3", env="RERANKER_MODEL")
+    RERANKER_NVIDIA_MODEL: str = Field(
+        "nvidia/llama-nemotron-rerank-1b-v2",
+        env="RERANKER_NVIDIA_MODEL",
+    )
     RERANKER_DEVICE: str = Field("cpu", env="RERANKER_DEVICE")
 
     # API
