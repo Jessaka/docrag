@@ -56,9 +56,9 @@ class DocsRAGChain:
         self._max_context_results = max_context_results
         self._retriever_initialized = False
 
-    async def ask(self, query: str) -> Dict[str, Any]:
+    async def ask(self, query: str, previous_query: Optional[str] = None) -> Dict[str, Any]:
         """Generate a non-streaming answer for a user query."""
-        plan = await self._prepare(query)
+        plan = await self._prepare(query, previous_query=previous_query)
         if plan["cached"]:
             return plan["cached_response"]
 
@@ -88,9 +88,9 @@ class DocsRAGChain:
         self._cache.set(route=route, query=query, value=response)
         return response
 
-    async def ask_stream(self, query: str) -> AsyncIterator[Dict[str, Any]]:
+    async def ask_stream(self, query: str, previous_query: Optional[str] = None) -> AsyncIterator[Dict[str, Any]]:
         """Stream an answer as structured events."""
-        plan = await self._prepare(query)
+        plan = await self._prepare(query, previous_query=previous_query)
         if plan["cached"]:
             cached_response = plan["cached_response"]
             yield {
@@ -151,8 +151,13 @@ class DocsRAGChain:
         self._cache.set(route=route, query=query, value=response)
         yield {"type": "done", "response": response}
 
-    async def _prepare(self, query: str) -> Dict[str, Any]:
+    async def _prepare(self, query: str, previous_query: Optional[str] = None) -> Dict[str, Any]:
         query_profile = classify_query(query)
+        if previous_query and self._is_weak_classification(query_profile):
+            contextual_profile = classify_query(f"{previous_query} {query}")
+            if contextual_profile.providers or contextual_profile.tools:
+                contextual_profile.query = query
+                query_profile = contextual_profile
         route = self._route_query(query=query, query_profile=query_profile)
 
         cached_response = self._cache.get(route=route, query=query)
@@ -217,6 +222,22 @@ class DocsRAGChain:
             provider_filter=query_profile.primary_provider,
         )
         return retrieval.get("results", [])[: self._max_context_results]
+
+    def _is_weak_classification(self, query_profile: QueryProfile) -> bool:
+        """Detect a classification with no usable provider/tool signal.
+
+        Follow-up questions ("Jak ho spustím bez permisí?") often reference
+        a tool named only in the previous turn, so classify_query has
+        nothing to match on its own. This flags exactly that situation so
+        _prepare can retry classification with the previous turn's text.
+        """
+        if query_profile.is_out_of_scope:
+            return True
+        return (
+            query_profile.provider_confidence == "low"
+            and not query_profile.providers
+            and not query_profile.tools
+        )
 
     def _needs_rewrite(self, query_profile: QueryProfile) -> bool:
         """Decide whether the extra rewrite round-trip is worth its latency.

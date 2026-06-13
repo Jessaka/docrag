@@ -141,8 +141,13 @@ async def security_headers_middleware(request: Request, call_next):
     return response
 
 
-def _ensure_session(session_id: Optional[str]) -> str:
-    """Create or update a session in the pool and return its ID."""
+def _ensure_session(session_id: Optional[str], query: str) -> tuple[str, Optional[str]]:
+    """Create or update a session in the pool.
+
+    Returns the resolved session ID and the previous user query (if any),
+    so the generation layer can fall back to conversational context for
+    under-specified follow-up questions.
+    """
     resolved_session_id = session_id or str(uuid.uuid4())
     session = session_pool.get_session(resolved_session_id)
 
@@ -157,18 +162,21 @@ def _ensure_session(session_id: Optional[str]) -> str:
         )
         session = session_pool.get_session(resolved_session_id) or {}
 
+    previous_query = session.get("last_user_query")
+
     session["last_seen_at"] = time.time()
     session["message_count"] = int(session.get("message_count", 0)) + 1
+    session["last_user_query"] = query
 
     if hasattr(session_pool, "update_session"):
         session_pool.update_session(resolved_session_id, session)
     else:
         session_pool.create_session(resolved_session_id, session)
 
-    return resolved_session_id
+    return resolved_session_id, previous_query
 
 
-async def _stream_chat_response(query: str, session_id: str) -> AsyncIterator[str]:
+async def _stream_chat_response(query: str, session_id: str, previous_query: Optional[str]) -> AsyncIterator[str]:
     """Serialize chain stream events into SSE format."""
     try:
         yield _sse_event(
@@ -177,7 +185,7 @@ async def _stream_chat_response(query: str, session_id: str) -> AsyncIterator[st
                 "session_id": session_id,
             }
         )
-        async for event in rag_chain.ask_stream(query):
+        async for event in rag_chain.ask_stream(query, previous_query=previous_query):
             enriched_event = {**event, "session_id": session_id}
             yield _sse_event(enriched_event)
     except Exception as exc:
@@ -199,9 +207,9 @@ def _sse_event(payload: Dict[str, Any]) -> str:
 @app.post("/chat")
 async def chat(payload: ChatRequest) -> JSONResponse:
     """Return a single JSON response from the generation layer."""
-    session_id = _ensure_session(payload.session_id)
+    session_id, previous_query = _ensure_session(payload.session_id, payload.query)
     try:
-        response = await rag_chain.ask(payload.query)
+        response = await rag_chain.ask(payload.query, previous_query=previous_query)
     except Exception as exc:
         logger.exception("Chat request failed")
         detail = str(exc) if settings.DEBUG_API_ERRORS else "Chat request failed."
@@ -218,9 +226,9 @@ async def chat(payload: ChatRequest) -> JSONResponse:
 @app.post("/chat/stream")
 async def chat_stream(payload: ChatRequest) -> StreamingResponse:
     """Stream a chat response over Server-Sent Events."""
-    session_id = _ensure_session(payload.session_id)
+    session_id, previous_query = _ensure_session(payload.session_id, payload.query)
     return StreamingResponse(
-        _stream_chat_response(payload.query, session_id),
+        _stream_chat_response(payload.query, session_id, previous_query),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
