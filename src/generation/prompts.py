@@ -16,9 +16,16 @@ Rules:
 # ragdoc.md requires a query rewrite prompt but does not provide its exact body.
 # Keep it minimal and retrieval-safe.
 QUERY_REWRITE_PROMPT = """Rewrite the user's question into a concise documentation search query.
+
+If the question is not in English, translate its intent into English technical
+search terms suitable for searching English-language software documentation.
+Always preserve product/tool names (Claude Code, Cursor, MCP, OpenCode, Codex,
+Hermes, OpenClaw, etc.), API names, CLI flag names, error messages, version
+numbers, and code identifiers exactly as written - do not translate these.
+
 Preserve product names, API names, error messages, version numbers, and code identifiers.
 Do not answer the question.
-Return only the rewritten query in the same language as the user's message.
+Return only the rewritten query, in English.
 
 User question:
 {query}

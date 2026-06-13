@@ -33,6 +33,16 @@ IDENTITY_QUERIES = {
     "co jsi",
 }
 
+# Czech-specific diacritic characters (both cases). Their presence is a
+# cheap, dependency-free signal that a query is not English and needs
+# translation before embedding against the English-only docs corpus.
+_CZECH_DIACRITICS = set("áčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ")
+
+
+def _contains_czech_diacritics(text: str) -> bool:
+    """Return True if text contains any Czech-specific diacritic character."""
+    return any(char in _CZECH_DIACRITICS for char in text)
+
 
 class DocsRAGChain:
     """High-level generation service for docs Q&A."""
@@ -205,9 +215,13 @@ class DocsRAGChain:
             retrieval_query = query
         query_vector = await self._embed_query(retrieval_query)
 
+        # Use retrieval_query (English after rewrite/translation) for BM25 and
+        # reranking too, not just embedding - otherwise a Czech query_vector
+        # still gets paired with raw Czech text for BM25/cross-encoder scoring
+        # against the English-only corpus, which scores everything near zero.
         if query_profile.is_comparison and len(query_profile.providers) > 1:
             retrieval = self._retriever.retrieve_for_comparison(
-                query=query,
+                query=retrieval_query,
                 query_vector=query_vector,
                 providers=query_profile.providers,
             )
@@ -217,7 +231,7 @@ class DocsRAGChain:
             return retrieval.get("results", [])
 
         retrieval = self._retriever.retrieve(
-            query=query,
+            query=retrieval_query,
             query_vector=query_vector,
             provider_filter=query_profile.primary_provider,
         )
@@ -247,7 +261,13 @@ class DocsRAGChain:
         enough signal for embedding/BM25 retrieval, so skip the rewrite.
         Genuinely vague queries (low confidence, no type label matched)
         still get rewritten to extract retrieval-relevant terms.
+
+        Non-English (Czech) queries always need the rewrite regardless of
+        confidence, since the docs corpus is English-only and the raw
+        Czech text embeds poorly against it.
         """
+        if _contains_czech_diacritics(query_profile.query):
+            return True
         return query_profile.provider_confidence == "low" or query_profile.query_type == "faq"
 
     async def _rewrite_query(self, query: str) -> str:
