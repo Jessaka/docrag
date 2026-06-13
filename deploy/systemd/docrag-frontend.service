@@ -1,0 +1,37 @@
+# DocsRAG frontend systemd unit.
+#
+# This file matches docs/hetzner_deployment_plan.md.
+# Because the frontend currently uses adapter-auto, the first deployment plan
+# runs the built preview server behind nginx.
+
+[Unit]
+Description=DocsRAG Svelte frontend preview server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+
+# Run from the symlinked active release frontend directory.
+WorkingDirectory=/opt/docrag/app/current/frontend
+
+# Load frontend build/runtime configuration.
+EnvironmentFile=/opt/docrag/app/shared/frontend.env
+
+# Start the Svelte preview server on localhost only.
+ExecStart=/usr/bin/npm run preview -- --host 127.0.0.1 --port 4173
+
+# Keep the frontend preview server running across failures.
+Restart=always
+RestartSec=5
+TimeoutStartSec=60
+TimeoutStopSec=30
+
+# Append logs into the shared log directory.
+StandardOutput=append:/opt/docrag/app/shared/logs/frontend.log
+StandardError=append:/opt/docrag/app/shared/logs/frontend.log
+
+[Install]
+WantedBy=multi-user.target

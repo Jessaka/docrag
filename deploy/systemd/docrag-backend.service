@@ -1,0 +1,36 @@
+# DocsRAG backend systemd unit.
+#
+# This file matches docs/hetzner_deployment_plan.md.
+# It runs the existing FastAPI backend from the current symlinked release.
+
+[Unit]
+Description=DocsRAG FastAPI backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+
+# Run from the symlinked active release.
+WorkingDirectory=/opt/docrag/app/current
+
+# Load runtime secrets and settings from the shared backend env file.
+EnvironmentFile=/opt/docrag/app/shared/backend.env
+
+# Start the existing backend exactly as documented in the Hetzner plan.
+ExecStart=/opt/docrag/app/current/.venv/bin/python scripts/serve.py --host 127.0.0.1 --port 8000
+
+# Keep the backend running across crashes and transient failures.
+Restart=always
+RestartSec=5
+TimeoutStartSec=60
+TimeoutStopSec=30
+
+# Append logs into the shared log directory.
+StandardOutput=append:/opt/docrag/app/shared/logs/backend.log
+StandardError=append:/opt/docrag/app/shared/logs/backend.log
+
+[Install]
+WantedBy=multi-user.target
