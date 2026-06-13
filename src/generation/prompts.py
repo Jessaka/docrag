@@ -15,18 +15,43 @@ Rules:
 
 # ragdoc.md requires a query rewrite prompt but does not provide its exact body.
 # Keep it minimal and retrieval-safe.
-QUERY_REWRITE_PROMPT = """Rewrite the user's question into a concise documentation search query.
+QUERY_REWRITE_PROMPT = """Rewrite the user's question as a complete, natural English question
+suitable for searching English-language software documentation.
 
-If the question is not in English, translate its intent into English technical
-search terms suitable for searching English-language software documentation.
+If the question is not in English, translate it fully into a natural English
+question - do NOT produce a list of keywords or a short fragment. The output
+must read like a real question a person would ask, with proper grammar.
+
 Always preserve product/tool names (Claude Code, Cursor, MCP, OpenCode, Codex,
 Hermes, OpenClaw, etc.), API names, CLI flag names, error messages, version
 numbers, and code identifiers exactly as written - do not translate these.
 
-Preserve product names, API names, error messages, version numbers, and code identifiers.
-Do not answer the question.
-Return only the rewritten query, in English.
+If the question is already a natural English question, return it unchanged.
+
+Do not answer the question. Return only the rewritten question, in English.
+
+Examples:
+
+User question:
+Je Hermes vhodný pro agentní workflows?
+
+Rewritten question:
+Is Hermes suitable for agentic workflows?
+
+User question:
+Jak nainstaluji Claude Code?
+
+Rewritten question:
+How do I install Claude Code?
+
+User question:
+Jak nakonfiguruji MCP servery v OpenCode?
+
+Rewritten question:
+How do I configure MCP servers in OpenCode?
 
 User question:
 {query}
+
+Rewritten question:
 """
