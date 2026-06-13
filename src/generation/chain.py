@@ -66,9 +66,14 @@ class DocsRAGChain:
         self._max_context_results = max_context_results
         self._retriever_initialized = False
 
-    async def ask(self, query: str, previous_query: Optional[str] = None) -> Dict[str, Any]:
+    async def ask(
+        self,
+        query: str,
+        previous_query: Optional[str] = None,
+        last_strong_profile: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """Generate a non-streaming answer for a user query."""
-        plan = await self._prepare(query, previous_query=previous_query)
+        plan = await self._prepare(query, previous_query=previous_query, last_strong_profile=last_strong_profile)
         if plan["cached"]:
             return plan["cached_response"]
 
@@ -98,9 +103,14 @@ class DocsRAGChain:
         self._cache.set(route=route, query=query, value=response)
         return response
 
-    async def ask_stream(self, query: str, previous_query: Optional[str] = None) -> AsyncIterator[Dict[str, Any]]:
+    async def ask_stream(
+        self,
+        query: str,
+        previous_query: Optional[str] = None,
+        last_strong_profile: Optional[Dict[str, Any]] = None,
+    ) -> AsyncIterator[Dict[str, Any]]:
         """Stream an answer as structured events."""
-        plan = await self._prepare(query, previous_query=previous_query)
+        plan = await self._prepare(query, previous_query=previous_query, last_strong_profile=last_strong_profile)
         if plan["cached"]:
             cached_response = plan["cached_response"]
             yield {
@@ -161,13 +171,29 @@ class DocsRAGChain:
         self._cache.set(route=route, query=query, value=response)
         yield {"type": "done", "response": response}
 
-    async def _prepare(self, query: str, previous_query: Optional[str] = None) -> Dict[str, Any]:
+    async def _prepare(
+        self,
+        query: str,
+        previous_query: Optional[str] = None,
+        last_strong_profile: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         query_profile = classify_query(query)
-        if previous_query and self._is_weak_classification(query_profile):
-            contextual_profile = classify_query(f"{previous_query} {query}")
-            if contextual_profile.providers or contextual_profile.tools:
-                contextual_profile.query = query
-                query_profile = contextual_profile
+        if self._is_weak_classification(query_profile) and last_strong_profile:
+            # Inherit providers/tools/query_type from the last turn that
+            # classified strongly, so follow-up questions ("Jak ho spustím
+            # bez permisí?", "Jak to spustím ve WSL?") keep routing to the
+            # right provider/tool across arbitrarily many weak turns.
+            query_profile = QueryProfile(
+                query=query,
+                query_type=last_strong_profile.get("query_type", "faq"),
+                providers=list(last_strong_profile.get("providers", [])),
+                tools=list(last_strong_profile.get("tools", [])),
+                all_labels=list(last_strong_profile.get("all_labels", [])),
+                is_multi_provider=last_strong_profile.get("is_multi_provider", False),
+                is_comparison=last_strong_profile.get("is_comparison", False),
+                is_out_of_scope=False,
+                provider_hits=dict(last_strong_profile.get("provider_hits", {})),
+            )
         route = self._route_query(query=query, query_profile=query_profile)
 
         cached_response = self._cache.get(route=route, query=query)
@@ -268,7 +294,14 @@ class DocsRAGChain:
         """
         if _contains_czech_diacritics(query_profile.query):
             return True
-        return query_profile.provider_confidence == "low" or query_profile.query_type == "faq"
+        if query_profile.provider_confidence == "low":
+            return True
+        # Only rewrite faq queries with no detected provider/tool —
+        # faq queries with a known provider are well-formed English and
+        # rewriting them hurts BM25 recall (verified empirically).
+        if query_profile.query_type == "faq" and not query_profile.providers and not query_profile.tools:
+            return True
+        return False
 
     async def _rewrite_query(self, query: str) -> str:
         """Rewrite the query for retrieval, falling back to the raw query."""
@@ -458,5 +491,7 @@ class DocsRAGChain:
                 "is_multi_provider": query_profile.is_multi_provider,
                 "is_comparison": query_profile.is_comparison,
                 "is_out_of_scope": query_profile.is_out_of_scope,
+                "provider_hits": query_profile.provider_hits,
             },
+            "profile_is_weak": self._is_weak_classification(query_profile),
         }
