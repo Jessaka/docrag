@@ -12,11 +12,18 @@
 		cached?: boolean;
 	}
 
+	function generateId(): string {
+		if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+			return crypto.randomUUID();
+		}
+		return 'id-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+	}
+
 	let sessionId = $state('');
 	let query = $state('');
 	let messages: Message[] = $state([
 		{
-			id: crypto.randomUUID(),
+			id: generateId(),
 			role: 'assistant',
 			content:
 				'Ask about Claude Code, Cursor, Opencode, Codex, Hermes, or OpenClaw. Responses stream in as they are generated.',
@@ -37,14 +44,14 @@
 		isLoading = true;
 
 		const userMessage: Message = {
-			id: crypto.randomUUID(),
+			id: generateId(),
 			role: 'user',
 			content: trimmed,
 			sources: []
 		};
 		messages = [...messages, userMessage];
 
-		const placeholderId = crypto.randomUUID();
+		const placeholderId = generateId();
 		currentAssistantId = placeholderId;
 		messages = [
 			...messages,
