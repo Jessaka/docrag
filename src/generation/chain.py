@@ -11,7 +11,11 @@ from openai import AsyncOpenAI
 from config import settings
 from src.generation.cache import ResponseCache
 from src.generation.constants import RouteStrategy
-from src.generation.prompts import QUERY_REWRITE_PROMPT, SYSTEM_PROMPT
+from src.generation.prompts import (
+    QUERY_REWRITE_PROMPT,
+    QUERY_REWRITE_PROMPT_WITH_CONTEXT,
+    SYSTEM_PROMPT,
+)
 from src.retrieval.hybrid import SearchResult
 from src.retrieval.query_classifier import QueryProfile, classify_query
 from src.retrieval.retriever import DocsRetriever
@@ -212,7 +216,9 @@ class DocsRAGChain:
         results: List[SearchResult] = []
         route_after_retrieval = route
         if route in {RouteStrategy.DOCS_RAG, RouteStrategy.SOFT_GUIDANCE_DIRECT, RouteStrategy.FALLBACK_NO_ANSWER}:
-            results = await self._retrieve_context(query=query, query_profile=query_profile)
+            results = await self._retrieve_context(
+                query=query, query_profile=query_profile, previous_query=previous_query
+            )
             if results:
                 route_after_retrieval = RouteStrategy.DOCS_RAG
             elif route == RouteStrategy.DOCS_RAG:
@@ -230,13 +236,21 @@ class DocsRAGChain:
             "context": context,
         }
 
-    async def _retrieve_context(self, query: str, query_profile: QueryProfile) -> List[SearchResult]:
+    async def _retrieve_context(
+        self, query: str, query_profile: QueryProfile, previous_query: Optional[str] = None
+    ) -> List[SearchResult]:
         if not self._retriever_initialized:
             self._retriever.initialize()
             self._retriever_initialized = True
 
-        if self._needs_rewrite(query_profile):
-            retrieval_query = await self._rewrite_query(query)
+        # A follow-up turn's query text often relies on the previous turn for
+        # its referent (e.g. "A na windows v power shell?"), so its own
+        # query_profile (or one inherited from last_strong_profile) may not
+        # signal that a rewrite is needed even though the raw text is not a
+        # self-contained retrieval query. Always rewrite with context in that
+        # case; eval queries have previous_query=None so this is a no-op there.
+        if self._needs_rewrite(query_profile) or previous_query:
+            retrieval_query = await self._rewrite_query(query, previous_query=previous_query)
         else:
             retrieval_query = query
         query_vector = await self._embed_query(retrieval_query)
@@ -303,8 +317,18 @@ class DocsRAGChain:
             return True
         return False
 
-    async def _rewrite_query(self, query: str) -> str:
-        """Rewrite the query for retrieval, falling back to the raw query."""
+    async def _rewrite_query(self, query: str, previous_query: Optional[str] = None) -> str:
+        """Rewrite the query for retrieval, falling back to the raw query.
+
+        If previous_query is provided, the rewrite resolves references to
+        the prior turn ("this", "ho", "to", ...) into a standalone question
+        before translation, so follow-up queries retrieve correctly.
+        """
+        if previous_query:
+            prompt = QUERY_REWRITE_PROMPT_WITH_CONTEXT.format(query=query, previous_query=previous_query)
+        else:
+            prompt = QUERY_REWRITE_PROMPT.format(query=query)
+
         try:
             response = await self._anthropic.messages.create(
                 model=self._anthropic_model,
@@ -313,7 +337,7 @@ class DocsRAGChain:
                 messages=[
                     {
                         "role": "user",
-                        "content": QUERY_REWRITE_PROMPT.format(query=query),
+                        "content": prompt,
                     }
                 ],
             )
