@@ -141,12 +141,13 @@ async def security_headers_middleware(request: Request, call_next):
     return response
 
 
-def _ensure_session(session_id: Optional[str], query: str) -> tuple[str, Optional[str]]:
+def _ensure_session(session_id: Optional[str], query: str) -> tuple[str, Optional[str], Optional[Dict[str, Any]]]:
     """Create or update a session in the pool.
 
-    Returns the resolved session ID and the previous user query (if any),
-    so the generation layer can fall back to conversational context for
-    under-specified follow-up questions.
+    Returns the resolved session ID, the previous user query (if any), and
+    the last "strong" query_profile (if any), so the generation layer can
+    fall back to conversational context for under-specified follow-up
+    questions.
     """
     resolved_session_id = session_id or str(uuid.uuid4())
     session = session_pool.get_session(resolved_session_id)
@@ -158,11 +159,13 @@ def _ensure_session(session_id: Optional[str], query: str) -> tuple[str, Optiona
                 "created_at": time.time(),
                 "last_seen_at": time.time(),
                 "message_count": 0,
+                "last_strong_profile": None,
             },
         )
         session = session_pool.get_session(resolved_session_id) or {}
 
     previous_query = session.get("last_user_query")
+    last_strong_profile = session.get("last_strong_profile")
 
     session["last_seen_at"] = time.time()
     session["message_count"] = int(session.get("message_count", 0)) + 1
@@ -173,10 +176,37 @@ def _ensure_session(session_id: Optional[str], query: str) -> tuple[str, Optiona
     else:
         session_pool.create_session(resolved_session_id, session)
 
-    return resolved_session_id, previous_query
+    return resolved_session_id, previous_query, last_strong_profile
 
 
-async def _stream_chat_response(query: str, session_id: str, previous_query: Optional[str]) -> AsyncIterator[str]:
+def _update_last_strong_profile(session_id: str, response: Dict[str, Any]) -> None:
+    """Persist the query_profile from this turn if it classified strongly.
+
+    This lets follow-up questions in the same session inherit the last
+    confidently-detected provider/tool/query_type, across arbitrarily many
+    weakly-classified turns.
+    """
+    if response.get("profile_is_weak"):
+        return
+
+    session = session_pool.get_session(session_id)
+    if session is None:
+        return
+
+    session["last_strong_profile"] = response.get("query_profile")
+
+    if hasattr(session_pool, "update_session"):
+        session_pool.update_session(session_id, session)
+    else:
+        session_pool.create_session(session_id, session)
+
+
+async def _stream_chat_response(
+    query: str,
+    session_id: str,
+    previous_query: Optional[str],
+    last_strong_profile: Optional[Dict[str, Any]],
+) -> AsyncIterator[str]:
     """Serialize chain stream events into SSE format."""
     try:
         yield _sse_event(
@@ -185,7 +215,11 @@ async def _stream_chat_response(query: str, session_id: str, previous_query: Opt
                 "session_id": session_id,
             }
         )
-        async for event in rag_chain.ask_stream(query, previous_query=previous_query):
+        async for event in rag_chain.ask_stream(
+            query, previous_query=previous_query, last_strong_profile=last_strong_profile
+        ):
+            if event.get("type") == "done":
+                _update_last_strong_profile(session_id, event.get("response", {}))
             enriched_event = {**event, "session_id": session_id}
             yield _sse_event(enriched_event)
     except Exception as exc:
@@ -207,13 +241,17 @@ def _sse_event(payload: Dict[str, Any]) -> str:
 @app.post("/chat")
 async def chat(payload: ChatRequest) -> JSONResponse:
     """Return a single JSON response from the generation layer."""
-    session_id, previous_query = _ensure_session(payload.session_id, payload.query)
+    session_id, previous_query, last_strong_profile = _ensure_session(payload.session_id, payload.query)
     try:
-        response = await rag_chain.ask(payload.query, previous_query=previous_query)
+        response = await rag_chain.ask(
+            payload.query, previous_query=previous_query, last_strong_profile=last_strong_profile
+        )
     except Exception as exc:
         logger.exception("Chat request failed")
         detail = str(exc) if settings.DEBUG_API_ERRORS else "Chat request failed."
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=detail) from exc
+
+    _update_last_strong_profile(session_id, response)
 
     return JSONResponse(
         content={
@@ -226,9 +264,9 @@ async def chat(payload: ChatRequest) -> JSONResponse:
 @app.post("/chat/stream")
 async def chat_stream(payload: ChatRequest) -> StreamingResponse:
     """Stream a chat response over Server-Sent Events."""
-    session_id, previous_query = _ensure_session(payload.session_id, payload.query)
+    session_id, previous_query, last_strong_profile = _ensure_session(payload.session_id, payload.query)
     return StreamingResponse(
-        _stream_chat_response(payload.query, session_id, previous_query),
+        _stream_chat_response(payload.query, session_id, previous_query, last_strong_profile),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
