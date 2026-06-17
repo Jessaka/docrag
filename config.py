@@ -62,6 +62,10 @@ class Settings(BaseSettings):
     LLM_TIMEOUT: int = Field(20, env="LLM_TIMEOUT")
     LLM_MAX_RETRIES: int = Field(1, env="LLM_MAX_RETRIES")
 
+    # Web search fallback (Tavily)
+    TAVILY_API_KEY: Optional[str] = Field(None, env="TAVILY_API_KEY")
+    USE_WEB_SEARCH_FALLBACK: bool = Field(True, env="USE_WEB_SEARCH_FALLBACK")
+
     # Debug & Telemetry
     DEBUG_API_ERRORS: bool = Field(False, env="DEBUG_API_ERRORS")
     TELEMETRY_ENABLED: bool = Field(True, env="TELEMETRY_ENABLED")

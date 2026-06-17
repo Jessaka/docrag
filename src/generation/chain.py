@@ -15,15 +15,20 @@ from src.generation.prompts import (
     QUERY_REWRITE_PROMPT,
     QUERY_REWRITE_PROMPT_WITH_CONTEXT,
     SYSTEM_PROMPT,
+    WEB_SEARCH_SYSTEM_PROMPT,
 )
 from src.retrieval.hybrid import SearchResult
 from src.retrieval.query_classifier import QueryProfile, classify_query
 from src.retrieval.retriever import DocsRetriever
+from src.retrieval.web_search import TavilySearcher
 
 logger = logging.getLogger(__name__)
 
 CACHED_SYSTEM_PROMPT = [
     {"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}
+]
+CACHED_WEB_SEARCH_SYSTEM_PROMPT = [
+    {"type": "text", "text": WEB_SEARCH_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}
 ]
 
 EMBEDDING_MODEL = "text-embedding-3-small"
@@ -69,6 +74,11 @@ class DocsRAGChain:
         self._embedding_model = embedding_model
         self._max_context_results = max_context_results
         self._retriever_initialized = False
+        self._web_searcher: Optional[TavilySearcher] = (
+            TavilySearcher(api_key=settings.TAVILY_API_KEY)
+            if settings.USE_WEB_SEARCH_FALLBACK and settings.TAVILY_API_KEY
+            else None
+        )
 
     async def ask(
         self,
@@ -104,7 +114,8 @@ class DocsRAGChain:
             sources=plan["sources"],
             cached=False,
         )
-        self._cache.set(route=route, query=query, value=response)
+        if route != RouteStrategy.WEB_SEARCH:
+            self._cache.set(route=route, query=query, value=response)
         return response
 
     async def ask_stream(
@@ -151,10 +162,15 @@ class DocsRAGChain:
             return
 
         collected_chunks: List[str] = []
+        stream_system = (
+            CACHED_WEB_SEARCH_SYSTEM_PROMPT
+            if route == RouteStrategy.WEB_SEARCH
+            else CACHED_SYSTEM_PROMPT
+        )
         async with self._anthropic.messages.stream(
             model=self._anthropic_model,
             max_tokens=MAX_OUTPUT_TOKENS,
-            system=CACHED_SYSTEM_PROMPT,
+            system=stream_system,
             messages=[{"role": "user", "content": self._build_user_prompt(query, plan["context"])}],
         ) as stream:
             async for text in stream.text_stream:
@@ -172,7 +188,8 @@ class DocsRAGChain:
             sources=plan["sources"],
             cached=False,
         )
-        self._cache.set(route=route, query=query, value=response)
+        if route != RouteStrategy.WEB_SEARCH:
+            self._cache.set(route=route, query=query, value=response)
         yield {"type": "done", "response": response}
 
     async def _prepare(
@@ -223,6 +240,22 @@ class DocsRAGChain:
                 route_after_retrieval = RouteStrategy.DOCS_RAG
             elif route == RouteStrategy.DOCS_RAG:
                 route_after_retrieval = RouteStrategy.FALLBACK_NO_ANSWER
+
+        # Web search fallback: when docs retrieval found nothing (or classifier
+        # said out-of-scope), try Tavily before giving up.
+        if route_after_retrieval in {RouteStrategy.FALLBACK_NO_ANSWER, RouteStrategy.UNSUPPORTED_DIRECT}:
+            if self._web_searcher is not None:
+                web_results = await self._web_searcher.search(query)
+                if web_results:
+                    return {
+                        "cached": False,
+                        "cached_response": None,
+                        "query_profile": query_profile,
+                        "route": RouteStrategy.WEB_SEARCH,
+                        "results": [],
+                        "sources": self._serialize_web_sources(web_results),
+                        "context": self._format_web_context(web_results),
+                    }
 
         sources = self._serialize_sources(results)
         context = self._format_context(results)
@@ -356,10 +389,15 @@ class DocsRAGChain:
         return list(response.data[0].embedding)
 
     async def _generate_answer(self, query: str, route: RouteStrategy, context: str) -> str:
+        system = (
+            CACHED_WEB_SEARCH_SYSTEM_PROMPT
+            if route == RouteStrategy.WEB_SEARCH
+            else CACHED_SYSTEM_PROMPT
+        )
         response = await self._anthropic.messages.create(
             model=self._anthropic_model,
             max_tokens=MAX_OUTPUT_TOKENS,
-            system=CACHED_SYSTEM_PROMPT,
+            system=system,
             messages=[{"role": "user", "content": self._build_user_prompt(query, context)}],
         )
         answer = "\n".join(
@@ -489,6 +527,37 @@ class DocsRAGChain:
                 }
             )
         return serialized
+
+    def _serialize_web_sources(self, web_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        return [
+            {
+                "title": r["title"],
+                "url": r["url"],
+                "provider": "web",
+                "tool_name": "web",
+                "doc_type": "web",
+                "section": "",
+                "score": r["score"],
+                "source": "tavily",
+            }
+            for r in web_results
+        ]
+
+    def _format_web_context(self, web_results: List[Dict[str, Any]]) -> str:
+        blocks = []
+        for index, r in enumerate(web_results, start=1):
+            blocks.append(
+                "\n".join(
+                    [
+                        f"[Source {index}]",
+                        f"Title: {r['title']}",
+                        f"URL: {r['url']}",
+                        "Content:",
+                        r["content"],
+                    ]
+                )
+            )
+        return "\n\n".join(blocks)
 
     def _build_response(
         self,
