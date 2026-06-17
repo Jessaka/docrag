@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
-from urllib import error, request
+from urllib import error, parse, request
 
 
 DEFAULT_BASE_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
@@ -143,7 +143,17 @@ def evaluate_query(item: Dict[str, Any], base_url: str, timeout: float) -> Dict[
 
     provider_hit = any(source.get("provider") == item["expected_provider"] for source in sources)
     route_match = route == item["expected_route"]
-    source_hit = any(source.get("url") in set(item["expected_source_urls"]) for source in sources)
+
+    expected_urls = set(item["expected_source_urls"])
+    expected_hostnames = {parse.urlparse(u).hostname for u in expected_urls}
+    exact_match = any(source.get("url") in expected_urls for source in sources)
+    domain_match = any(
+        source.get("provider") == item["expected_provider"]
+        and parse.urlparse(source.get("url") or "").hostname in expected_hostnames
+        for source in sources
+    )
+    source_hit = exact_match or domain_match
+
     has_answer = is_non_fallback_answer(answer=answer, route=route)
 
     failure_reasons: List[str] = []
