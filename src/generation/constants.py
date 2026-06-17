@@ -19,3 +19,6 @@ class RouteStrategy(str, Enum):
 
     # LLM
     GENERIC_LLM = "generic_llm"
+
+    # Web search fallback
+    WEB_SEARCH = "web_search"

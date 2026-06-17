@@ -130,7 +130,7 @@ class HybridRetriever:
         scores = self._bm25.get_scores(tokenized_query)
 
         # When filtering by provider, scan more candidates to find enough matches
-        candidate_k = top_k * 5 if provider_filter else top_k
+        candidate_k = top_k * 10 if provider_filter else top_k * 3
         top_indices = np.argsort(scores)[::-1][:candidate_k]
 
         results = []
