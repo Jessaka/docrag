@@ -468,8 +468,10 @@
 								<div class="typing-dots" aria-label={t.streamingLabel}>
 									<span></span><span></span><span></span>
 								</div>
+							{:else if msg.streaming && msg.content}
+								<pre class="streaming-text">{msg.content}</pre>
 							{:else if msg.content}
-									<div class="md-body">{@html renderMarkdown(msg.content)}</div>
+								<div class="md-body">{@html renderMarkdown(msg.content)}</div>
 							{/if}
 						</div>
 
@@ -897,6 +899,18 @@
 	.assistant-panel.streaming {
 		border-color: rgba(124, 58, 237, 0.3);
 		box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.1);
+	}
+
+	.streaming-text {
+		margin: 0;
+		font-family: inherit;
+		font-size: inherit;
+		color: inherit;
+		white-space: pre-wrap;
+		word-break: break-word;
+		background: none;
+		border: none;
+		padding: 0;
 	}
 
 	.msg-meta {
