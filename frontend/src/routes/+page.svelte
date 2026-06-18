@@ -68,6 +68,7 @@
 	let isLoading = $state(false);
 	let errorMessage = $state('');
 	let currentAssistantId = $state('');
+	let streamingContent = $state('');
 	let expandedSources = $state(new Set<string>());
 	let messagesEl: HTMLElement | undefined = $state();
 	let textareaEl: HTMLTextAreaElement | undefined = $state();
@@ -219,41 +220,56 @@
 		// 7. Horizontal rules
 		text = text.replace(/^---+$/gm, '<hr class="md-hr">');
 
-		// 8. Unordered lists — collect consecutive list lines
-		text = text.replace(/((?:^[ \t]*[-*+] .+\n?)+)/gm, (block) => {
-			const items = block.trim().split('\n').map(l =>
-				`<li>${l.replace(/^[ \t]*[-*+] /, '')}</li>`
-			).join('');
-			return `<ul class="md-ul">${items}</ul>`;
-		});
-
-		// 9. Ordered lists
-		text = text.replace(/((?:^[ \t]*\d+\. .+\n?)+)/gm, (block) => {
-			const items = block.trim().split('\n').map(l =>
-				`<li>${l.replace(/^[ \t]*\d+\. /, '')}</li>`
-			).join('');
-			return `<ol class="md-ol">${items}</ol>`;
-		});
-
-		// 10. Tables — detect blocks of pipe-delimited lines with a separator row
-		text = text.replace(/((?:^\|.+\|\s*\n?)+)/gm, (block) => {
-			const lines = block.trim().split('\n').map(l => l.trim()).filter(Boolean);
-			if (lines.length < 2) return block;
-			// Separator row: cells contain only dashes, colons, spaces
-			const isSep = (l: string) => /^\|[\s\-:|]+\|$/.test(l);
-			const sepIdx = lines.findIndex(isSep);
-			if (sepIdx !== 1) return block; // separator must be second line
-			const parseRow = (l: string) =>
-				l.replace(/^\||\|$/g, '').split('|').map(c => c.trim());
-			const headers = parseRow(lines[0]);
-			const thead = `<thead class="md-thead"><tr>${
-				headers.map(h => `<th class="md-th">${h}</th>`).join('')
-			}</tr></thead>`;
-			const tbody = lines.slice(2).map(row =>
-				`<tr>${parseRow(row).map(c => `<td class="md-td">${c}</td>`).join('')}</tr>`
-			).join('');
-			return `<table class="md-table">${thead}<tbody>${tbody}</tbody></table>`;
-		});
+		// 8–10. Lists and tables — scan line by line to avoid nested-quantifier backtracking
+		{
+			const inputLines = text.split('\n');
+			const out: string[] = [];
+			let li = 0;
+			while (li < inputLines.length) {
+				const ln = inputLines[li];
+				if (/^[ \t]*[-*+] /.test(ln)) {
+					const items: string[] = [];
+					while (li < inputLines.length && /^[ \t]*[-*+] /.test(inputLines[li])) {
+						items.push(`<li>${inputLines[li].replace(/^[ \t]*[-*+] /, '')}</li>`);
+						li++;
+					}
+					out.push(`<ul class="md-ul">${items.join('')}</ul>`);
+				} else if (/^[ \t]*\d+\. /.test(ln)) {
+					const items: string[] = [];
+					while (li < inputLines.length && /^[ \t]*\d+\. /.test(inputLines[li])) {
+						items.push(`<li>${inputLines[li].replace(/^[ \t]*\d+\. /, '')}</li>`);
+						li++;
+					}
+					out.push(`<ol class="md-ol">${items.join('')}</ol>`);
+				} else if (/^\|.+\|/.test(ln)) {
+					const tbl: string[] = [];
+					while (li < inputLines.length && /^\|.+\|/.test(inputLines[li].trim())) {
+						tbl.push(inputLines[li].trim());
+						li++;
+					}
+					const isSep = (l: string) => /^\|[\s\-:|]+\|$/.test(l);
+					const sepIdx = tbl.findIndex(isSep);
+					if (tbl.length >= 2 && sepIdx === 1) {
+						const parseRow = (l: string) =>
+							l.replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+						const headers = parseRow(tbl[0]);
+						const thead = `<thead class="md-thead"><tr>${
+							headers.map(h => `<th class="md-th">${h}</th>`).join('')
+						}</tr></thead>`;
+						const tbody = tbl.slice(2).map(row =>
+							`<tr>${parseRow(row).map(c => `<td class="md-td">${c}</td>`).join('')}</tr>`
+						).join('');
+						out.push(`<table class="md-table">${thead}<tbody>${tbody}</tbody></table>`);
+					} else {
+						out.push(...tbl);
+					}
+				} else {
+					out.push(ln);
+					li++;
+				}
+			}
+			text = out.join('\n');
+		}
 
 		// 11. Paragraphs — split on blank lines
 		const blocks = text.split(/\n{2,}/);
@@ -274,8 +290,8 @@
 	}
 
 	// ── Message helpers ────────────────────────────────────────────────────
-	function appendToken(id: string, token: string) {
-		messages = messages.map(m => m.id === id ? { ...m, content: m.content + token } : m);
+	function appendToken(token: string) {
+		streamingContent += token;
 	}
 
 	function patchMessage(id: string, patch: Partial<Message>) {
@@ -283,6 +299,7 @@
 	}
 
 	function applyFinal(id: string, response: ChatResponse) {
+		streamingContent = '';
 		messages = messages.map(m =>
 			m.id === id ? {
 				...m,
@@ -331,7 +348,7 @@
 						}
 						if (event.type === 'error') errorMessage = event.detail;
 					},
-					onToken: (token) => appendToken(assistantId, token),
+					onToken: (token) => appendToken(token),
 					onDone: (response) => {
 						applyFinal(assistantId, response);
 						sessionId = response.session_id || sessionId;
@@ -348,7 +365,9 @@
 							}
 						}
 						errorMessage = message;
-						patchMessage(assistantId, { streaming: false, content: messages.find(m => m.id === assistantId)?.content || 'Unable to complete the request.' });
+						const partial = streamingContent;
+						streamingContent = '';
+						patchMessage(assistantId, { streaming: false, content: partial || 'Unable to complete the request.' });
 					}
 				}
 			);
@@ -358,6 +377,7 @@
 		} finally {
 			currentAssistantId = '';
 			isLoading = false;
+			streamingContent = '';
 		}
 	}
 </script>
@@ -464,12 +484,14 @@
 
 						<!-- Content -->
 						<div class="assistant-content">
-							{#if msg.streaming && !msg.content}
-								<div class="typing-dots" aria-label={t.streamingLabel}>
-									<span></span><span></span><span></span>
-								</div>
-							{:else if msg.streaming && msg.content}
-								<pre class="streaming-text">{msg.content}</pre>
+							{#if msg.id === currentAssistantId && isLoading}
+								{#if !streamingContent}
+									<div class="typing-dots" aria-label={t.streamingLabel}>
+										<span></span><span></span><span></span>
+									</div>
+								{:else}
+									<pre class="streaming-text">{streamingContent}</pre>
+								{/if}
 							{:else if msg.content}
 								<div class="md-body">{@html renderMarkdown(msg.content)}</div>
 							{/if}
