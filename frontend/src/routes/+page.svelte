@@ -290,8 +290,19 @@
 	}
 
 	// ── Message helpers ────────────────────────────────────────────────────
+	let _tokenBuffer = '';
+	let _rafPending = false;
+
 	function appendToken(token: string) {
-		streamingContent += token;
+		_tokenBuffer += token;
+		if (!_rafPending) {
+			_rafPending = true;
+			requestAnimationFrame(() => {
+				streamingContent += _tokenBuffer;
+				_tokenBuffer = '';
+				_rafPending = false;
+			});
+		}
 	}
 
 	function patchMessage(id: string, patch: Partial<Message>) {
@@ -299,6 +310,8 @@
 	}
 
 	function applyFinal(id: string, response: ChatResponse) {
+		_tokenBuffer = '';
+		_rafPending = false;
 		streamingContent = '';
 		messages = messages.map(m =>
 			m.id === id ? {
@@ -375,6 +388,8 @@
 			errorMessage = err instanceof Error ? err.message : 'Request failed.';
 			patchMessage(assistantId, { streaming: false });
 		} finally {
+			_tokenBuffer = '';
+			_rafPending = false;
 			currentAssistantId = '';
 			isLoading = false;
 			streamingContent = '';
@@ -934,6 +949,19 @@
 		background: none;
 		border: none;
 		padding: 0;
+	}
+
+	.streaming-text::after {
+		content: '▋';
+		display: inline-block;
+		color: #a78bfa;
+		animation: blink-cursor 0.7s step-end infinite;
+		margin-left: 1px;
+	}
+
+	@keyframes blink-cursor {
+		0%, 100% { opacity: 1; }
+		50%       { opacity: 0; }
 	}
 
 	.msg-meta {
