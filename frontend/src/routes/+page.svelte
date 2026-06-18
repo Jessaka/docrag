@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { streamChat, postChat, type ChatResponse, type SourceDocument } from '$lib/api';
 
 	// ── Types ──────────────────────────────────────────────────────────────
@@ -274,12 +275,12 @@
 	}
 
 	// ── Message helpers ────────────────────────────────────────────────────
-	function appendToken(id: string, token: string) {
-		// Mutate the element directly so Svelte 5's fine-grained reactivity
-		// triggers a targeted DOM update on each token instead of replacing
-		// the entire messages array (which batches/coalesces updates).
+	async function appendToken(id: string, token: string) {
 		const idx = messages.findIndex(m => m.id === id);
-		if (idx !== -1) messages[idx].content += token;
+		if (idx !== -1) {
+			messages[idx].content += token;
+			await tick();
+		}
 	}
 
 	function patchMessage(id: string, patch: Partial<Message>) {
