@@ -289,37 +289,9 @@
 		return text;
 	}
 
-	// ── Typewriter ─────────────────────────────────────────────────────────
-	let _charQueue: string[] = [];
-	let _twInterval: ReturnType<typeof setInterval> | null = null;
-
-	function _startTypewriter() {
-		if (_twInterval !== null) return;
-		_twInterval = setInterval(() => {
-			if (_charQueue.length === 0) return;
-			// Speed up if queue is large so we don't fall behind
-			const batch = _charQueue.length > 100 ? 5 : _charQueue.length > 50 ? 3 : _charQueue.length > 20 ? 2 : 1;
-			streamingContent += _charQueue.splice(0, batch).join('');
-		}, 15);
-	}
-
-	function _stopTypewriter(flush = false) {
-		if (_twInterval !== null) {
-			clearInterval(_twInterval);
-			_twInterval = null;
-		}
-		if (flush && _charQueue.length > 0) {
-			streamingContent += _charQueue.join('');
-			_charQueue = [];
-		} else {
-			_charQueue = [];
-		}
-	}
-
 	// ── Message helpers ────────────────────────────────────────────────────
 	function appendToken(token: string) {
-		for (const ch of token) _charQueue.push(ch);
-		_startTypewriter();
+		streamingContent += token;
 	}
 
 	function patchMessage(id: string, patch: Partial<Message>) {
@@ -327,7 +299,6 @@
 	}
 
 	function applyFinal(id: string, response: ChatResponse) {
-		_stopTypewriter(false); // discard queue — final answer replaces streamed content
 		streamingContent = '';
 		messages = messages.map(m =>
 			m.id === id ? {
@@ -394,7 +365,6 @@
 							}
 						}
 						errorMessage = message;
-						_stopTypewriter(true); // flush queue into streamingContent before snapshotting
 						const partial = streamingContent;
 						streamingContent = '';
 						patchMessage(assistantId, { streaming: false, content: partial || 'Unable to complete the request.' });
@@ -405,7 +375,6 @@
 			errorMessage = err instanceof Error ? err.message : 'Request failed.';
 			patchMessage(assistantId, { streaming: false });
 		} finally {
-			_stopTypewriter(false);
 			currentAssistantId = '';
 			isLoading = false;
 			streamingContent = '';
