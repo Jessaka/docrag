@@ -68,7 +68,8 @@
 	let isLoading = $state(false);
 	let errorMessage = $state('');
 	let currentAssistantId = $state('');
-	let streamingContent = $state('');
+	let streamingEl: HTMLElement | undefined = $state(undefined);
+	let rawStreamBuffer = ''; // plain var — never goes through Svelte scheduler
 	let expandedSources = $state(new Set<string>());
 	let messagesEl: HTMLElement | undefined = $state();
 	let textareaEl: HTMLTextAreaElement | undefined = $state();
@@ -138,6 +139,11 @@
 		// Scroll whenever messages or content changes
 		messages;
 		setTimeout(scrollToBottom, 20);
+	});
+
+	// When the streaming <pre> mounts, apply any chars that arrived before binding
+	$effect(() => {
+		if (streamingEl) streamingEl.textContent = rawStreamBuffer;
 	});
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -291,7 +297,9 @@
 
 	// ── Message helpers ────────────────────────────────────────────────────
 	function appendToken(token: string) {
-		streamingContent += token;
+		console.log(performance.now().toFixed(0), 'token:', JSON.stringify(token));
+		rawStreamBuffer += token;
+		if (streamingEl) streamingEl.textContent = rawStreamBuffer;
 	}
 
 	function patchMessage(id: string, patch: Partial<Message>) {
@@ -299,7 +307,7 @@
 	}
 
 	function applyFinal(id: string, response: ChatResponse) {
-		streamingContent = '';
+		rawStreamBuffer = '';
 		messages = messages.map(m =>
 			m.id === id ? {
 				...m,
@@ -365,8 +373,8 @@
 							}
 						}
 						errorMessage = message;
-						const partial = streamingContent;
-						streamingContent = '';
+						const partial = rawStreamBuffer;
+						rawStreamBuffer = '';
 						patchMessage(assistantId, { streaming: false, content: partial || 'Unable to complete the request.' });
 					}
 				}
@@ -375,9 +383,9 @@
 			errorMessage = err instanceof Error ? err.message : 'Request failed.';
 			patchMessage(assistantId, { streaming: false });
 		} finally {
+			rawStreamBuffer = '';
 			currentAssistantId = '';
 			isLoading = false;
-			streamingContent = '';
 		}
 	}
 </script>
@@ -486,13 +494,7 @@
 						<!-- Content -->
 						<div class="assistant-content">
 							{#if msg.id === currentAssistantId && isLoading}
-								{#if !streamingContent}
-									<div class="typing-dots" aria-label={t.streamingLabel}>
-										<span></span><span></span><span></span>
-									</div>
-								{:else}
-									<pre class="streaming-text">{streamingContent}</pre>
-								{/if}
+								<pre class="streaming-text" bind:this={streamingEl}></pre>
 							{:else if msg.content}
 								<div class="md-body">{@html renderMarkdown(msg.content)}</div>
 							{/if}
