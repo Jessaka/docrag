@@ -235,13 +235,33 @@
 			return `<ol class="md-ol">${items}</ol>`;
 		});
 
-		// 10. Paragraphs — split on blank lines
+		// 10. Tables — detect blocks of pipe-delimited lines with a separator row
+		text = text.replace(/((?:^\|.+\|\s*\n?)+)/gm, (block) => {
+			const lines = block.trim().split('\n').map(l => l.trim()).filter(Boolean);
+			if (lines.length < 2) return block;
+			// Separator row: cells contain only dashes, colons, spaces
+			const isSep = (l: string) => /^\|[\s\-:|]+\|$/.test(l);
+			const sepIdx = lines.findIndex(isSep);
+			if (sepIdx !== 1) return block; // separator must be second line
+			const parseRow = (l: string) =>
+				l.replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+			const headers = parseRow(lines[0]);
+			const thead = `<thead class="md-thead"><tr>${
+				headers.map(h => `<th class="md-th">${h}</th>`).join('')
+			}</tr></thead>`;
+			const tbody = lines.slice(2).map(row =>
+				`<tr>${parseRow(row).map(c => `<td class="md-td">${c}</td>`).join('')}</tr>`
+			).join('');
+			return `<table class="md-table">${thead}<tbody>${tbody}</tbody></table>`;
+		});
+
+		// 11. Paragraphs — split on blank lines
 		const blocks = text.split(/\n{2,}/);
 		text = blocks.map(b => {
 			b = b.trim();
 			if (!b) return '';
 			// Don't wrap block elements in <p>
-			if (/^<(h[2-5]|ul|ol|pre|blockquote|hr)/.test(b)) return b;
+			if (/^<(h[2-5]|ul|ol|pre|blockquote|hr|table)/.test(b)) return b;
 			if (/^\x00CB\d+\x00$/.test(b)) return b;
 			// Single newlines within paragraph → <br>
 			return `<p class="md-p">${b.replace(/\n/g, '<br>')}</p>`;
@@ -255,9 +275,11 @@
 
 	// ── Message helpers ────────────────────────────────────────────────────
 	function appendToken(id: string, token: string) {
-		messages = messages.map(m =>
-			m.id === id ? { ...m, content: m.content + token } : m
-		);
+		// Mutate the element directly so Svelte 5's fine-grained reactivity
+		// triggers a targeted DOM update on each token instead of replacing
+		// the entire messages array (which batches/coalesces updates).
+		const idx = messages.findIndex(m => m.id === id);
+		if (idx !== -1) messages[idx].content += token;
 	}
 
 	function patchMessage(id: string, patch: Partial<Message>) {
@@ -1020,6 +1042,38 @@
 		border: none;
 		border-top: 1px solid rgba(255,255,255,0.07);
 		margin: 1em 0;
+	}
+	:global(.md-body .md-table) {
+		width: 100%;
+		border-collapse: collapse;
+		margin: 0.85em 0;
+		font-size: 0.85rem;
+		border: 1px solid rgba(124, 58, 237, 0.2);
+		border-radius: 8px;
+		overflow: hidden;
+	}
+	:global(.md-body .md-thead) {
+		background: rgba(124, 58, 237, 0.15);
+	}
+	:global(.md-body .md-th) {
+		padding: 0.55rem 0.85rem;
+		text-align: left;
+		font-weight: 600;
+		color: #c4b5fd;
+		border-bottom: 1px solid rgba(124, 58, 237, 0.25);
+		white-space: nowrap;
+	}
+	:global(.md-body .md-td) {
+		padding: 0.48rem 0.85rem;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+		color: #c8c8e0;
+		vertical-align: top;
+	}
+	:global(.md-body tbody tr:last-child .md-td) {
+		border-bottom: none;
+	}
+	:global(.md-body tbody tr:hover) {
+		background: rgba(124, 58, 237, 0.05);
 	}
 
 	/* ── Sources ─────────────────────────────────────────────────────────── */
