@@ -383,7 +383,8 @@
 </script>
 
 <svelte:head>
-	<title>DocRAG — AI Documentation Assistant</title>
+	<title>RakModel — AI Documentation Assistant</title>
+	<link rel="icon" type="image/png" href="/favicon.png" />
 	<meta name="description" content="AI documentation assistant for Claude Code, Cursor, Opencode, Codex, Hermes, and OpenClaw." />
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
