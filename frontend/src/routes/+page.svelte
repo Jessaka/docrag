@@ -290,19 +290,8 @@
 	}
 
 	// ── Message helpers ────────────────────────────────────────────────────
-	let _tokenBuffer = '';
-	let _rafPending = false;
-
 	function appendToken(token: string) {
-		_tokenBuffer += token;
-		if (!_rafPending) {
-			_rafPending = true;
-			requestAnimationFrame(() => {
-				streamingContent += _tokenBuffer;
-				_tokenBuffer = '';
-				_rafPending = false;
-			});
-		}
+		streamingContent += token;
 	}
 
 	function patchMessage(id: string, patch: Partial<Message>) {
@@ -310,8 +299,6 @@
 	}
 
 	function applyFinal(id: string, response: ChatResponse) {
-		_tokenBuffer = '';
-		_rafPending = false;
 		streamingContent = '';
 		messages = messages.map(m =>
 			m.id === id ? {
@@ -388,8 +375,6 @@
 			errorMessage = err instanceof Error ? err.message : 'Request failed.';
 			patchMessage(assistantId, { streaming: false });
 		} finally {
-			_tokenBuffer = '';
-			_rafPending = false;
 			currentAssistantId = '';
 			isLoading = false;
 			streamingContent = '';
