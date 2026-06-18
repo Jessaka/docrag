@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { tick } from 'svelte';
 	import { streamChat, postChat, type ChatResponse, type SourceDocument } from '$lib/api';
 
 	// ── Types ──────────────────────────────────────────────────────────────
@@ -275,12 +274,8 @@
 	}
 
 	// ── Message helpers ────────────────────────────────────────────────────
-	async function appendToken(id: string, token: string) {
-		const idx = messages.findIndex(m => m.id === id);
-		if (idx !== -1) {
-			messages[idx].content += token;
-			await tick();
-		}
+	function appendToken(id: string, token: string) {
+		messages = messages.map(m => m.id === id ? { ...m, content: m.content + token } : m);
 	}
 
 	function patchMessage(id: string, patch: Partial<Message>) {
