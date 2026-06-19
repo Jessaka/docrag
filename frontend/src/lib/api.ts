@@ -94,6 +94,7 @@ export async function streamChat(
 
 	while (true) {
 		const { done, value } = await reader.read();
+		console.log(performance.now().toFixed(0), 'reader.read() returned, done:', done, 'bytes:', value?.length);
 		if (done) {
 			break;
 		}
