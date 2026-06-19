@@ -388,12 +388,7 @@ Live at: **[https://rak-model.duckdns.org](https://rak-model.duckdns.org)**
 
 ## License
 
-No `LICENSE` file is currently present in this repository. **MIT license is recommended.** To add it:
-
-```bash
-curl -o LICENSE https://opensource.org/licenses/MIT
-# (or create manually with year + author name)
-```
+MIT License — see [LICENSE](LICENSE) for details.
 
 ---
 
